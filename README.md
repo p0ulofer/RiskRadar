@@ -257,7 +257,7 @@ Cobertura atual:
 
 - **33 testes** de pipeline (carga, limpeza, clustering, score, exportação,
   sintético e OSM com cliente falso).
-- **27 testes** de app (haversine/índice espacial, regras de alerta,
+- **28 testes** de app (haversine/índice espacial, regras de alerta,
   repositório com cache/seed/falha de rede e fallback de notificações).
 - TypeScript strict sem erros e ESLint sem avisos.
 

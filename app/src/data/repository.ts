@@ -120,11 +120,25 @@ export async function clearCache(): Promise<void> {
 /**
  * Carrega os dados: cache em arquivo (se válido) e, como fallback, o seed.
  * Nunca lança: o app sempre abre, mesmo com cache corrompido.
+ *
+ * O seed embarcado é a versão dos dados que acompanha o app: se o cache em
+ * arquivo veio de outra versão (build anterior, por exemplo), ele é
+ * descartado para que o app mostre os dados do seed atual.
  */
 export async function loadHotspots(): Promise<LoadResult> {
   try {
     const cached = await readCache();
-    if (cached) return { document: cached, source: 'cache' };
+    if (cached) {
+      if (cached.meta.data_version === seedDocument.meta.data_version) {
+        return { document: cached, source: 'cache' };
+      }
+      await clearCache().catch(() => undefined);
+      return {
+        document: seedDocument,
+        source: 'seed',
+        error: 'Cache de outra versão descartado',
+      };
+    }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     await clearCache().catch(() => undefined);

@@ -52,13 +52,25 @@ describe('repository', () => {
 
   it('usa o cache quando ele é válido', async () => {
     const cached = cloneSeed();
-    cached.meta.data_version = '20260101-deadbeef';
+    cached.meta.data_version = seedDocument.meta.data_version;
     fs.getInfoAsync.mockResolvedValue({ exists: true } as never);
     fs.readAsStringAsync.mockResolvedValue(JSON.stringify(cached));
 
     const result = await loadHotspots();
     expect(result.source).toBe('cache');
-    expect(result.document.meta.data_version).toBe('20260101-deadbeef');
+    expect(result.document.meta.data_version).toBe(seedDocument.meta.data_version);
+  });
+
+  it('descarta o cache de outra versão e usa o seed atual', async () => {
+    const cached = cloneSeed();
+    cached.meta.data_version = '20260101-deadbeef';
+    fs.getInfoAsync.mockResolvedValue({ exists: true } as never);
+    fs.readAsStringAsync.mockResolvedValue(JSON.stringify(cached));
+
+    const result = await loadHotspots();
+    expect(result.source).toBe('seed');
+    expect(result.document.meta.data_version).toBe(seedDocument.meta.data_version);
+    expect(fs.deleteAsync).toHaveBeenCalled();
   });
 
   it('cai no seed e limpa o cache quando o JSON está corrompido', async () => {
