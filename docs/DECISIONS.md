@@ -89,10 +89,10 @@ Formato: **decisão**, **motivo** e **alternativas descartadas**.
 
 ## Fase 3–7 — App
 
-### D17. Expo SDK 58 e Expo Go
-- **Decisão:** usar Expo SDK 58, `expo-router` e TypeScript strict; dependências nativas apenas as suportadas pelo Expo Go.
-- **Motivo:** a missão exige execução no Expo Go, sem build nativo.
-- **Observação:** `expo` foi fixado em `58.0.16` porque `58.0.17` pedia `@expo/cli@^58.1.14`, versão ainda não publicada. O pacote `expo` foi incluído em `expo.install.exclude` para o `expo-doctor` não acusar a diferença de patch; os demais checks passam.
+### D17. Expo SDK 57 e Expo Go
+- **Decisão:** usar Expo SDK 57 (`expo ^57.0.0`, instalado 57.0.31), `expo-router`, TypeScript strict e apenas dependências nativas suportadas pelo Expo Go.
+- **Motivo:** é a versão do Expo Go disponível no ambiente de teste; o projeto foi alinhado a ela com `npx expo install --fix`.
+- **Observação:** as dependências de desenvolvimento também foram alinhadas (Jest 29, `jest-expo` 57, `eslint-config-expo` 57). O `expo-doctor` passa em 21/21 checks.
 
 ### D18. Dados locais: seed + cache + atualização opcional
 - **Decisão:** embarcar `hotspots.json` em `app/assets/data/` como seed; na inicialização, usar cache em arquivo se válido e cair para o seed em qualquer erro; atualização remota só ocorre se `EXPO_PUBLIC_DATA_URL` estiver definida e a `data_version` remota for diferente.
@@ -107,3 +107,8 @@ Formato: **decisão**, **motivo** e **alternativas descartadas**.
 - **Decisão:** indexar hotspots em células de 0,1° e consultar apenas as células vizinhas para filtros, mapa e “Perto de mim”.
 - **Motivo:** evita varrer 2.546 hotspots a cada atualização de posição no modo alerta.
 - **Alternativa descartada:** k-d tree (melhoraria consultas, mas adiciona dependência e complexidade para o volume atual).
+
+### D21. Carregamento tardio do `expo-notifications`
+- **Decisão:** não importar `expo-notifications` no topo dos módulos. A ponte `src/lib/notifications.ts` faz `require` sob demanda dentro de `try/catch`; se o módulo nativo não existir, o status vira `unavailable` e o app segue com banner e voz.
+- **Motivo:** no Expo Go, o `import` estático de `expo-notifications` pode lançar `Cannot find native module 'ExpoTopicSubscriptionModule'` e derrubar o layout raiz inteiro (as rotas apareciam sem default export).
+- **Alternativa descartada:** exigir um development build só para notificações, o que contraria o requisito de rodar no Expo Go.

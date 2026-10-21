@@ -1,5 +1,4 @@
 import * as Location from 'expo-location';
-import * as Notifications from 'expo-notifications';
 import * as Speech from 'expo-speech';
 import {
   createContext,
@@ -13,19 +12,16 @@ import {
 } from 'react';
 
 import { evaluateAlerts, initialAlertState, type AlertState, type TriggeredAlert } from '@/lib/alerts';
+import {
+  getNotificationPermission,
+  presentLocalNotification,
+  requestNotificationPermission,
+  type NotificationPermission,
+} from '@/lib/notifications';
 import { useData } from '@/store/data';
 import { useSettings } from '@/store/settings';
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: false,
-    shouldSetBadge: false,
-  }),
-});
-
-export type PermissionStatus = 'granted' | 'denied' | 'undetermined' | 'unavailable';
+export type PermissionStatus = NotificationPermission;
 
 interface AlertsContextValue {
   activeAlert: TriggeredAlert | null;
@@ -72,15 +68,9 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const requestNotifications = useCallback(async (): Promise<boolean> => {
-    try {
-      let permission = await Notifications.getPermissionsAsync();
-      if (!permission.granted) permission = await Notifications.requestPermissionsAsync();
-      setNotificationStatus(statusFromPermission(permission.status));
-      return permission.granted;
-    } catch {
-      setNotificationStatus('unavailable');
-      return false;
-    }
+    const status = await requestNotificationPermission();
+    setNotificationStatus(status);
+    return status === 'granted';
   }, []);
 
   const notify = useCallback(async (alert: TriggeredAlert) => {
@@ -88,21 +78,11 @@ export function AlertsProvider({ children }: { children: ReactNode }) {
     if (dismissTimer.current) clearTimeout(dismissTimer.current);
     dismissTimer.current = setTimeout(() => setActiveAlert(null), 12_000);
 
-    try {
-      const permission = await Notifications.getPermissionsAsync();
-      setNotificationStatus(statusFromPermission(permission.status));
-      if (permission.granted) {
-        await Notifications.scheduleNotificationAsync({
-          content: {
-            title: 'RiskRadar',
-            body: alert.message,
-            sound: false,
-          },
-          trigger: null,
-        });
-      }
-    } catch {
-      // Notificação indisponível (ex.: limitações do Expo Go): o banner continua.
+    const status = await getNotificationPermission();
+    setNotificationStatus(status);
+    if (status === 'granted') {
+      // Se o módulo nativo não existir (Expo Go), o banner continua sozinho.
+      await presentLocalNotification('RiskRadar', alert.message);
     }
 
     if (settingsRef.current.voiceEnabled) {

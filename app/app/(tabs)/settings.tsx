@@ -123,10 +123,16 @@ export default function SettingsScreen() {
         ) : null}
         {settings.alertEnabled ? (
           <Text style={[styles.hint, { color: colors.textMuted }]}>
-            Notificações: {notificationStatus === 'granted' ? 'permitidas' : 'não permitidas'}.
-            {notificationStatus !== 'granted'
-              ? ' O banner no app continua funcionando; a notificação do sistema pode não aparecer.'
-              : ''}
+            Notificações do sistema:{' '}
+            {notificationStatus === 'granted'
+              ? 'permitidas'
+              : notificationStatus === 'unavailable'
+                ? 'indisponíveis neste ambiente (Expo Go)'
+                : 'não permitidas'}
+            . O banner no app continua funcionando
+            {notificationStatus === 'granted'
+              ? '.'
+              : '; a notificação do sistema pode não aparecer.'}
           </Text>
         ) : null}
 

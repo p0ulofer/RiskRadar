@@ -170,7 +170,7 @@ OpenStreetMap (17 lotes, sem falhas).
 ### Pré-requisitos
 
 - Node.js 20 LTS ou superior e npm.
-- **Expo Go** compatível com o **Expo SDK 58** no celular (Android/iOS).
+- **Expo Go** compatível com o **Expo SDK 57** no celular (Android/iOS).
 - Celular e computador na mesma rede Wi-Fi para abrir pelo Expo Go.
 
 ### Rodar
@@ -244,8 +244,8 @@ Cobertura atual:
 
 - **30 testes** de pipeline (carga, limpeza, clustering, score, exportação,
   sintético e OSM com cliente falso).
-- **25 testes** de app (haversine/índice espacial, regras de alerta e
-  repositório com cache/seed/falha de rede).
+- **27 testes** de app (haversine/índice espacial, regras de alerta,
+  repositório com cache/seed/falha de rede e fallback de notificações).
 - TypeScript strict sem erros e ESLint sem avisos.
 
 ## Documentação
@@ -265,7 +265,9 @@ Cobertura atual:
 - O mapa-base do `react-native-maps` pode exigir internet na primeira carga;
   os dados de hotspots são sempre locais.
 - Alertas só rodam em primeiro plano; notificações e voz dependem de
-  permissões do sistema.
+  permissões do sistema. No Expo Go, a notificação do sistema pode ficar
+  indisponível (módulo nativo ausente); nesse caso o banner interno e a voz
+  continuam funcionando.
 - O enriquecimento OSM cobre apenas o que está mapeado e pode estar
   desatualizado.
 
