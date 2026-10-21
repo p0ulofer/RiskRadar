@@ -112,3 +112,9 @@ Formato: **decisão**, **motivo** e **alternativas descartadas**.
 - **Decisão:** não importar `expo-notifications` no topo dos módulos. A ponte `src/lib/notifications.ts` faz `require` sob demanda dentro de `try/catch`; se o módulo nativo não existir, o status vira `unavailable` e o app segue com banner e voz.
 - **Motivo:** no Expo Go, o `import` estático de `expo-notifications` pode lançar `Cannot find native module 'ExpoTopicSubscriptionModule'` e derrubar o layout raiz inteiro (as rotas apareciam sem default export).
 - **Alternativa descartada:** exigir um development build só para notificações, o que contraria o requisito de rodar no Expo Go.
+
+### D22. Mapa com Leaflet/OpenStreetMap em WebView
+- **Decisão:** substituir `react-native-maps` por `react-native-webview` com Leaflet 1.9.4 e tiles do OpenStreetMap. O JS/CSS do Leaflet é gerado por `scripts/generate-leaflet-assets.js` e embutido no bundle; os marcadores e o círculo do hotspot são sincronizados por mensagens entre o app e o WebView.
+- **Motivo:** o Google Maps nativo não é mais suportado no Expo Go (a área do mapa ficava em branco). WebView/Leaflet funciona em Android e iOS no Expo Go, sem chave de API, e mantém o mapa alinhado à fonte OSM já usada no enriquecimento.
+- **Limitação:** os tiles do OSM exigem internet; os dados dos hotspots continuam offline. Para uso em escala, trocar por um provedor de tiles próprio.
+- **Alternativa descartada:** `expo-maps` (exige development build e não roda no Expo Go) e build nativo com chave do Google Maps (fora do escopo).

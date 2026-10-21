@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { useColorScheme } from 'react-native';
 
 import type { Level } from '@/types/hotspots';
@@ -54,13 +55,15 @@ export type AppColors = typeof palette.light;
 export function useTheme() {
   const scheme = useColorScheme();
   const isDark = scheme === 'dark';
-  const colors = isDark ? palette.dark : palette.light;
-  return {
-    isDark,
-    colors,
-    levelColor: (level: Level) => levelColors[level][isDark ? 'dark' : 'light'],
-    spacing: (multiplier = 1) => 8 * multiplier,
-  };
+  return useMemo(() => {
+    const colors = isDark ? palette.dark : palette.light;
+    return {
+      isDark,
+      colors,
+      levelColor: (level: Level) => levelColors[level][isDark ? 'dark' : 'light'],
+      spacing: (multiplier = 1) => 8 * multiplier,
+    };
+  }, [isDark]);
 }
 
 export const radius = {

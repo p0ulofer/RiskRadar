@@ -78,13 +78,16 @@ RiskRadar/
     │   ├── hotspot/[id].tsx    # detalhes
     │   └── about.tsx           # metodologia e avisos
     ├── src/
-    │   ├── components/         # UI reutilizável
+    │   ├── components/         # UI reutilizável (inclui LeafletMap.tsx)
     │   ├── data/repository.ts  # seed, cache e atualização remota
     │   ├── lib/geo.ts          # haversine e índice espacial
     │   ├── lib/alerts.ts       # regras de alerta (puro/testável)
+    │   ├── lib/notifications.ts # ponte tolerante a falhas do expo-notifications
+    │   ├── lib/leaflet-assets.ts # Leaflet embutido (gerado)
     │   ├── store/              # settings, dados e alertas
     │   ├── theme/
     │   └── types/
+    ├── scripts/                # geração dos assets do Leaflet
     └── assets/data/            # seed hotspots.json + meta.json
 ```
 
@@ -181,10 +184,10 @@ npm install
 npx expo start
 ```
 
-Escaneie o QR code com o Expo Go. O app abre com o **seed embarcado**, sem
-internet; mapa, filtros, detalhes, “Perto de mim” e configurações funcionam
-offline (o mapa-base depende do provedor de mapas e pode precisar de rede na
-primeira carga).
+Escaneie o QR code com o Expo Go. O app abre com o **seed embarcado**: dados,
+filtros, detalhes, “Perto de mim” e configurações funcionam sem internet. O
+mapa usa **Leaflet + tiles do OpenStreetMap** dentro de um WebView; a biblioteca
+do mapa vai embutida no app, mas os tiles precisam de rede para aparecer.
 
 ### Atualização remota dos dados
 
@@ -210,8 +213,10 @@ localização só é usada no aparelho.
 
 ### Funcionalidades
 
-- **Mapa:** marcadores coloridos por nível, filtros por UF, BR e nível mínimo,
-  legenda, card do trecho e atalho para os detalhes.
+- **Mapa:** Leaflet/OpenStreetMap em WebView (funciona no Expo Go em Android e
+  iOS, onde o Google Maps nativo não é mais suportado), marcadores coloridos por
+  nível, filtros por UF, BR e nível mínimo, legenda, card do trecho e atalho para
+  os detalhes.
 - **Detalhes:** vítimas, score, causas e tipos mais frequentes, distribuição
   por fase do dia e por ano (barras com `View`, sem lib de gráficos),
   infraestrutura OSM quando disponível e botão para abrir no app de mapas.
@@ -262,8 +267,13 @@ Cobertura atual:
 - Coordenadas da PRF podem ter imprecisão de dezenas/centenas de metros.
 - Trechos com menos de 5 acidentes próximos (raio de 300 m) não viram hotspot.
 - 2026 é parcial e não deve ser comparado diretamente a anos fechados.
-- O mapa-base do `react-native-maps` pode exigir internet na primeira carga;
-  os dados de hotspots são sempre locais.
+- O mapa-base usa tiles do OpenStreetMap e exige internet para exibir o
+  relevo/ruas; os dados de hotspots são sempre locais.
+- O Google Maps nativo não funciona no Expo Go atual. Por isso o mapa é
+  renderizado com Leaflet dentro de `react-native-webview`, sem chave de API.
+- Uso dos tiles do OpenStreetMap sujeito à
+  [política de uso](https://operations.osmfoundation.org/policies/tiles/) da
+  OSM Foundation; para produção em escala, use um provedor de tiles próprio.
 - Alertas só rodam em primeiro plano; notificações e voz dependem de
   permissões do sistema. No Expo Go, a notificação do sistema pode ficar
   indisponível (módulo nativo ausente); nesse caso o banner interno e a voz

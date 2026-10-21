@@ -1,6 +1,6 @@
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -8,20 +8,20 @@ import {
   Text,
   View,
 } from 'react-native';
-import MapView, { Circle, Marker, type Region } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DemoBanner } from '@/components/DemoBanner';
 import { FilterModal } from '@/components/FilterModal';
+import { LeafletMap } from '@/components/LeafletMap';
 import { LevelBadge } from '@/components/LevelBadge';
 import { formatKmRange, levelLabel } from '@/lib/format';
 import { HotspotIndex, filterHotspots } from '@/lib/geo';
 import { useData } from '@/store/data';
 import { useSettings } from '@/store/settings';
 import { levelOrder, radius, useTheme } from '@/theme';
-import type { Hotspot } from '@/types/hotspots';
+import type { GeoRegion, Hotspot } from '@/types/hotspots';
 
-const NORTHEAST_REGION: Region = {
+const NORTHEAST_REGION: GeoRegion = {
   latitude: -8.6,
   longitude: -37.6,
   latitudeDelta: 16,
@@ -37,19 +37,10 @@ export default function MapScreen() {
   const { document, ready } = useData();
   const { settings, updateFilters } = useSettings();
 
-  const mapRef = useRef<MapView | null>(null);
-  const hasCentered = useRef(false);
-  const [mapReady, setMapReady] = useState(false);
-  const [userRegion, setUserRegion] = useState<Region | null>(null);
-  const [region, setRegion] = useState<Region>(NORTHEAST_REGION);
-  const [debouncedRegion, setDebouncedRegion] = useState<Region>(NORTHEAST_REGION);
+  const [userRegion, setUserRegion] = useState<GeoRegion | null>(null);
+  const [region, setRegion] = useState<GeoRegion>(NORTHEAST_REGION);
   const [selected, setSelected] = useState<Hotspot | null>(null);
   const [filterOpen, setFilterOpen] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setDebouncedRegion(region), 250);
-    return () => clearTimeout(timer);
-  }, [region]);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,7 +52,7 @@ export default function MapScreen() {
           accuracy: Location.Accuracy.Balanced,
         });
         if (cancelled) return;
-        const next: Region = {
+        const next: GeoRegion = {
           latitude: position.coords.latitude,
           longitude: position.coords.longitude,
           latitudeDelta: 0.15,
@@ -69,7 +60,6 @@ export default function MapScreen() {
         };
         setUserRegion(next);
         setRegion(next);
-        setDebouncedRegion(next);
       } catch {
         // Mantém o mapa centrado no Nordeste.
       }
@@ -79,24 +69,18 @@ export default function MapScreen() {
     };
   }, []);
 
-  useEffect(() => {
-    if (!mapReady || !userRegion || hasCentered.current) return;
-    hasCentered.current = true;
-    mapRef.current?.animateToRegion(userRegion, 600);
-  }, [mapReady, userRegion]);
-
   const filtered = useMemo(
     () => filterHotspots(document.hotspots, settings.filters),
     [document.hotspots, settings.filters]
   );
   const index = useMemo(() => new HotspotIndex(filtered), [filtered]);
 
-  const zoomedOut = debouncedRegion.latitudeDelta > 6;
+  const zoomedOut = region.latitudeDelta > 6;
   const visible = useMemo(() => {
-    const items = index.hotspotsInRegion(debouncedRegion, MAX_MARKERS);
+    const items = index.hotspotsInRegion(region, MAX_MARKERS);
     if (!zoomedOut) return items;
     return items.filter((hotspot) => hotspot.level === 'alto' || hotspot.level === 'critico');
-  }, [index, debouncedRegion, zoomedOut]);
+  }, [index, region, zoomedOut]);
 
   const availableUfs = useMemo(
     () => [...new Set(document.hotspots.map((hotspot) => hotspot.uf))].sort(),
@@ -126,47 +110,15 @@ export default function MapScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {document.meta.fonte === 'sintetico' ? <DemoBanner /> : null}
       <View style={styles.mapWrapper}>
-        <MapView
-          ref={mapRef}
-          style={StyleSheet.absoluteFill}
-          initialRegion={NORTHEAST_REGION}
-          onMapReady={() => setMapReady(true)}
-          onRegionChangeComplete={setRegion}
-          showsUserLocation={false}
-          toolbarEnabled={false}
-          accessibilityLabel="Mapa de hotspots nas rodovias federais do Nordeste"
-        >
-          {visible.map((hotspot) => (
-            <Marker
-              key={hotspot.id}
-              coordinate={{ latitude: hotspot.lat, longitude: hotspot.lng }}
-              tracksViewChanges={false}
-              anchor={{ x: 0.5, y: 0.5 }}
-              onPress={() => setSelected(hotspot)}
-              accessibilityLabel={`Hotspot BR-${hotspot.br} ${hotspot.municipio} nível ${hotspot.level}`}
-            >
-              <View
-                style={[
-                  styles.marker,
-                  {
-                    backgroundColor: levelColor(hotspot.level),
-                    borderColor: colors.surface,
-                    transform: [{ scale: selected?.id === hotspot.id ? 1.35 : 1 }],
-                  },
-                ]}
-              />
-            </Marker>
-          ))}
-          {selected ? (
-            <Circle
-              center={{ latitude: selected.lat, longitude: selected.lng }}
-              radius={selected.radius_m}
-              fillColor={`${levelColor(selected.level)}33`}
-              strokeColor={levelColor(selected.level)}
-              strokeWidth={2}
-            />
-          ) : null}
-        </MapView>
+        <LeafletMap
+          hotspots={visible}
+          selected={selected}
+          focus={userRegion}
+          colorForLevel={levelColor}
+          backgroundColor={colors.background}
+          onSelect={setSelected}
+          onRegionChange={setRegion}
+        />
 
         <View
           style={[
@@ -304,12 +256,6 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
-  },
-  marker: {
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    borderWidth: 2,
   },
   topBar: {
     position: 'absolute',
