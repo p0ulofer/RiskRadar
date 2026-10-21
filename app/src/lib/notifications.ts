@@ -1,20 +1,32 @@
 /**
  * Ponte segura para o expo-notifications.
  *
- * Em algumas versões do Expo Go o módulo nativo `ExpoTopicSubscriptionModule`
- * não existe. O `import` estático de `expo-notifications` lança nesse caso e
- * derruba o app inteiro, mesmo que só quiséssemos notificações locais.
- * Por isso o pacote é carregado sob demanda e qualquer falha vira
- * `unavailable`: o banner no app e a voz continuam funcionando.
+ * O `index` do pacote `expo-notifications` importa o módulo nativo
+ * `ExpoTopicSubscriptionModule` (usado por push com tópicos), que não existe
+ * no Expo Go. Importar o pacote inteiro lança
+ * `Cannot find native module 'ExpoTopicSubscriptionModule'` e, no dev server,
+ * isso vira tela vermelha do LogBox.
+ *
+ * Por isso carregamos apenas os submódulos que o app usa — permissões,
+ * handler de primeiro plano e agendamento — que não tocam o módulo ausente.
+ * Se qualquer um deles não estiver disponível, o status vira `unavailable` e o
+ * app continua funcionando: banner interno e voz seguem ativos.
  */
 
-import type * as ExpoNotifications from 'expo-notifications';
+import type * as PermissionsModule from 'expo-notifications/build/NotificationPermissions';
+import type * as HandlerModule from 'expo-notifications/build/NotificationsHandler';
+import type * as SchedulerModule from 'expo-notifications/build/scheduleNotificationAsync';
 
 export type NotificationPermission = 'granted' | 'denied' | 'undetermined' | 'unavailable';
 
-type NotificationsModule = typeof ExpoNotifications;
+interface NotificationsApi {
+  getPermissionsAsync: typeof PermissionsModule.getPermissionsAsync;
+  requestPermissionsAsync: typeof PermissionsModule.requestPermissionsAsync;
+  setNotificationHandler: typeof HandlerModule.setNotificationHandler;
+  scheduleNotificationAsync: typeof SchedulerModule.scheduleNotificationAsync;
+}
 
-let cachedModule: NotificationsModule | null | undefined;
+let cachedApi: NotificationsApi | null | undefined;
 
 function normalize(status: string): NotificationPermission {
   if (status === 'granted') return 'granted';
@@ -23,15 +35,22 @@ function normalize(status: string): NotificationPermission {
   return 'unavailable';
 }
 
-function loadNotifications(): NotificationsModule | null {
-  if (cachedModule !== undefined) return cachedModule;
+function loadNotifications(): NotificationsApi | null {
+  if (cachedApi !== undefined) return cachedApi;
   try {
-    // require tardio: um import estático quebraria o app se o módulo nativo
-    // não existisse no Expo Go.
+    // Submódulos: não passam pelo index do pacote (ver comentário do topo).
     // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const module = require('expo-notifications') as NotificationsModule;
+    const permissions = require('expo-notifications/build/NotificationPermissions') as
+      typeof PermissionsModule;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const handler = require('expo-notifications/build/NotificationsHandler') as
+      typeof HandlerModule;
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const scheduler = require('expo-notifications/build/scheduleNotificationAsync') as
+      typeof SchedulerModule;
+
     try {
-      module.setNotificationHandler({
+      handler.setNotificationHandler({
         handleNotification: async () => ({
           shouldShowBanner: true,
           shouldShowList: true,
@@ -42,18 +61,24 @@ function loadNotifications(): NotificationsModule | null {
     } catch {
       // O handler só controla a apresentação em primeiro plano.
     }
-    cachedModule = module;
+
+    cachedApi = {
+      getPermissionsAsync: permissions.getPermissionsAsync,
+      requestPermissionsAsync: permissions.requestPermissionsAsync,
+      setNotificationHandler: handler.setNotificationHandler,
+      scheduleNotificationAsync: scheduler.scheduleNotificationAsync,
+    };
   } catch {
-    cachedModule = null;
+    cachedApi = null;
   }
-  return cachedModule;
+  return cachedApi;
 }
 
 export async function getNotificationPermission(): Promise<NotificationPermission> {
-  const module = loadNotifications();
-  if (!module) return 'unavailable';
+  const api = loadNotifications();
+  if (!api) return 'unavailable';
   try {
-    const permission = await module.getPermissionsAsync();
+    const permission = await api.getPermissionsAsync();
     return normalize(permission.status);
   } catch {
     return 'unavailable';
@@ -61,11 +86,11 @@ export async function getNotificationPermission(): Promise<NotificationPermissio
 }
 
 export async function requestNotificationPermission(): Promise<NotificationPermission> {
-  const module = loadNotifications();
-  if (!module) return 'unavailable';
+  const api = loadNotifications();
+  if (!api) return 'unavailable';
   try {
-    let permission = await module.getPermissionsAsync();
-    if (!permission.granted) permission = await module.requestPermissionsAsync();
+    let permission = await api.getPermissionsAsync();
+    if (!permission.granted) permission = await api.requestPermissionsAsync();
     return normalize(permission.status);
   } catch {
     return 'unavailable';
@@ -73,10 +98,10 @@ export async function requestNotificationPermission(): Promise<NotificationPermi
 }
 
 export async function presentLocalNotification(title: string, body: string): Promise<boolean> {
-  const module = loadNotifications();
-  if (!module) return false;
+  const api = loadNotifications();
+  if (!api) return false;
   try {
-    await module.scheduleNotificationAsync({
+    await api.scheduleNotificationAsync({
       content: { title, body, sound: false },
       trigger: null,
     });

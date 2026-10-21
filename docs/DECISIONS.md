@@ -109,8 +109,8 @@ Formato: **decisão**, **motivo** e **alternativas descartadas**.
 - **Alternativa descartada:** k-d tree (melhoraria consultas, mas adiciona dependência e complexidade para o volume atual).
 
 ### D21. Carregamento tardio do `expo-notifications`
-- **Decisão:** não importar `expo-notifications` no topo dos módulos. A ponte `src/lib/notifications.ts` faz `require` sob demanda dentro de `try/catch`; se o módulo nativo não existir, o status vira `unavailable` e o app segue com banner e voz.
-- **Motivo:** no Expo Go, o `import` estático de `expo-notifications` pode lançar `Cannot find native module 'ExpoTopicSubscriptionModule'` e derrubar o layout raiz inteiro (as rotas apareciam sem default export).
+- **Decisão:** não importar o `index` do pacote `expo-notifications` (que exige o módulo nativo `ExpoTopicSubscriptionModule`, ausente no Expo Go e usado só por push com tópicos). A ponte `src/lib/notifications.ts` carrega **apenas os submódulos** usados pelo app — `build/NotificationPermissions`, `build/NotificationsHandler` e `build/scheduleNotificationAsync` — sob demanda e dentro de `try/catch`; se algum não estiver disponível, o status vira `unavailable` e o app segue com banner e voz.
+- **Motivo:** o `import` estático do pacote lançava `Cannot find native module 'ExpoTopicSubscriptionModule'` e derrubava o layout raiz inteiro (as rotas apareciam sem default export). Mesmo capturado, o erro virava tela vermelha do LogBox ao ativar os alertas. Os submódulos não tocam o módulo ausente: o bundle gerado não contém mais a string `ExpoTopicSubscriptionModule` e as **notificações locais passam a funcionar no Expo Go** (o que o próprio Expo Go avisa ser possível).
 - **Alternativa descartada:** exigir um development build só para notificações, o que contraria o requisito de rodar no Expo Go.
 
 ### D24. Picos de densidade em vez de DBSCAN puro (anti-corrente)

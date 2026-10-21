@@ -127,7 +127,7 @@ export default function SettingsScreen() {
             {notificationStatus === 'granted'
               ? 'permitidas'
               : notificationStatus === 'unavailable'
-                ? 'indisponíveis neste ambiente (Expo Go)'
+                ? 'indisponíveis neste ambiente'
                 : 'não permitidas'}
             . O banner no app continua funcionando
             {notificationStatus === 'granted'

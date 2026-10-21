@@ -257,7 +257,7 @@ Cobertura atual:
 
 - **33 testes** de pipeline (carga, limpeza, clustering, score, exportação,
   sintético e OSM com cliente falso).
-- **28 testes** de app (haversine/índice espacial, regras de alerta,
+- **29 testes** de app (haversine/índice espacial, regras de alerta,
   repositório com cache/seed/falha de rede e fallback de notificações).
 - TypeScript strict sem erros e ESLint sem avisos.
 
@@ -285,9 +285,8 @@ Cobertura atual:
   [política de uso](https://operations.osmfoundation.org/policies/tiles/) da
   OSM Foundation; para produção em escala, use um provedor de tiles próprio.
 - Alertas só rodam em primeiro plano; notificações e voz dependem de
-  permissões do sistema. No Expo Go, a notificação do sistema pode ficar
-  indisponível (módulo nativo ausente); nesse caso o banner interno e a voz
-  continuam funcionando.
+  permissões do sistema. No Expo Go funcionam as **notificações locais**; o
+  *push* remoto (servidor) não é suportado e exigiria development build.
 - O enriquecimento OSM cobre apenas o que está mapeado e pode estar
   desatualizado.
 
