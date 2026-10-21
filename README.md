@@ -25,7 +25,7 @@ federais do Nordeste, a partir dos dados abertos da Polícia Rodoviária Federal
                ▼
 ┌──────────────────────────────┐
 │ Pipeline Python              │
-│  load → clean → DBSCAN       │
+│  load → clean → hotspots     │
 │  → score → export            │
 │  (opcional: Overpass/OSM)    │
 └──────────────┬───────────────┘
@@ -60,7 +60,7 @@ RiskRadar/
 │   │   ├── config.py           # todos os parâmetros
 │   │   ├── load.py             # CSV/ZIP, encoding, consolidação
 │   │   ├── clean.py            # validação e normalização
-│   │   ├── cluster.py          # DBSCAN por (UF, BR)
+│   │   ├── cluster.py          # picos de densidade por (UF, BR)
 │   │   ├── score.py            # UPS, score e níveis
 │   │   ├── osm.py              # enriquecimento opcional (fase 8)
 │   │   ├── synthetic.py        # fallback sintético
@@ -159,14 +159,20 @@ o build segue com schema 1 e o app continua funcionando.
 |---|---:|
 | Acidentes carregados (NE) | 71.302 |
 | Acidentes considerados após limpeza | 71.129 |
-| Hotspots gerados | 2.546 |
-| Níveis | 1.232 baixo · 803 médio · 381 alto · 130 crítico |
-| `hotspots.json` | 1.857.889 bytes (~1,77 MB), schema 2 |
-| Cortes de nível | médio 37 · alto 63 · crítico 171 |
-| Infraestrutura OSM | 220 semáforos · 801 faixas · 874 redutores · 284 câmeras |
+| Hotspots gerados | 3.165 |
+| Níveis | 1.582 baixo · 941 médio · 483 alto · 159 crítico |
+| `hotspots.json` | 2.380.189 bytes (~2,27 MB), schema 2 |
+| Cortes de nível | médio 39 · alto 71 · crítico 197 |
+| Infraestrutura OSM | 368 semáforos · 1.318 faixas · 952 redutores · 407 câmeras |
 
-O build de referência enriqueceu **todos os 2.546 hotspots** com dados do
-OpenStreetMap (17 lotes, sem falhas).
+O build de referência enriqueceu **todos os 3.165 hotspots** com dados do
+OpenStreetMap (22 lotes, sem falhas).
+
+Cada hotspot é a vizinhança de **300 m** em torno de um pico de densidade (no
+mínimo 5 acidentes), com picos separados por pelo menos 600 m — assim os
+círculos dos trechos não se sobrepõem no mapa. O trecho mais denso do
+Nordeste (BR-101/PE, km 70, em Recife) reúne 184 acidentes em 5 anos, e não
+2.709 em 87 km como no primeiro build (ver `docs/DECISIONS.md`, D24).
 
 ## App
 
@@ -249,7 +255,7 @@ npx jest --runInBand
 
 Cobertura atual:
 
-- **30 testes** de pipeline (carga, limpeza, clustering, score, exportação,
+- **33 testes** de pipeline (carga, limpeza, clustering, score, exportação,
   sintético e OSM com cliente falso).
 - **27 testes** de app (haversine/índice espacial, regras de alerta,
   repositório com cache/seed/falha de rede e fallback de notificações).
@@ -257,7 +263,7 @@ Cobertura atual:
 
 ## Documentação
 
-- [`docs/METODOLOGIA.md`](docs/METODOLOGIA.md): limpeza, DBSCAN, score,
+- [`docs/METODOLOGIA.md`](docs/METODOLOGIA.md): limpeza, hotspots, score,
   níveis, schema e ressalvas do OSM.
 - [`docs/DECISIONS.md`](docs/DECISIONS.md): decisões, motivos e alternativas
   descartadas.
@@ -266,7 +272,9 @@ Cobertura atual:
 ## Limitações conhecidas
 
 - Os dados são **históricos**: o app não prevê acidentes futuros.
-- Coordenadas da PRF podem ter imprecisão de dezenas/centenas de metros.
+- Coordenadas da PRF podem ter imprecisão de dezenas/centenas de metros: elas
+  são georreferenciadas ao **trecho** da rodovia, não ao GPS do acidente, e
+  vários acidentes compartilham a mesma coordenada.
 - Trechos com menos de 5 acidentes próximos (raio de 300 m) não viram hotspot.
 - 2026 é parcial e não deve ser comparado diretamente a anos fechados.
 - O mapa-base usa tiles do OpenStreetMap e exige internet para exibir o

@@ -7,10 +7,25 @@ export function formatDistance(meters: number): string {
   return `${(meters / 1000).toFixed(meters < 10_000 ? 1 : 0)} km`;
 }
 
-export function formatKmRange(hotspot: Pick<Hotspot, 'km_min' | 'km_max'>): string {
+/**
+ * Trecho de km do hotspot.
+ *
+ * O km reportado pela PRF é georreferenciado ao trecho da rodovia (e às vezes
+ * com numeração inconsistente), então uma faixa muito larga não descreve o
+ * ponto: nesses casos mostramos o km de referência (mediana).
+ */
+export function formatKmRange(
+  hotspot: Pick<Hotspot, 'km_min' | 'km_max'> & Partial<Pick<Hotspot, 'km_mediana'>>
+): string {
   const min = Number(hotspot.km_min).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
   const max = Number(hotspot.km_max).toLocaleString('pt-BR', { maximumFractionDigits: 1 });
   if (hotspot.km_max <= hotspot.km_min) return `km ${min}`;
+  if (hotspot.km_max - hotspot.km_min > 5) {
+    const reference = Number(hotspot.km_mediana ?? hotspot.km_min).toLocaleString('pt-BR', {
+      maximumFractionDigits: 1,
+    });
+    return `km ~${reference}`;
+  }
   return `km ${min}–${max}`;
 }
 

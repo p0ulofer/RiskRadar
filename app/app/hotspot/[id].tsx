@@ -115,7 +115,7 @@ export default function HotspotDetailsScreen() {
             { label: 'Feridos graves', value: hotspot.feridos_graves, accent: colors.warning },
             { label: 'Feridos leves', value: hotspot.feridos_leves },
             { label: 'Ilesos', value: hotspot.ilesos },
-            { label: 'Km do trecho', value: `${hotspot.km_min}–${hotspot.km_max}` },
+            { label: 'Km do trecho', value: formatKmRange(hotspot).replace('km ', '') },
           ]}
         />
       </View>

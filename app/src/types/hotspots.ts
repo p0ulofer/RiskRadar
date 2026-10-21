@@ -24,6 +24,8 @@ export interface Hotspot {
   municipio: string;
   km_min: number;
   km_max: number;
+  /** Km de referência do trecho (mediana do grupo dominante de km). */
+  km_mediana?: number;
   n_acidentes: number;
   mortos: number;
   feridos_graves: number;

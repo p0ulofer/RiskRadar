@@ -90,14 +90,16 @@ export default function AboutScreen() {
           <Text style={[styles.bullet, { color: colors.textMuted }]}>• 13 pontos: acidente com mortos.</Text>
         </View>
         <Text style={[styles.body, { color: colors.textMuted }]}>
-          Os acidentes são agrupados por rodovia (UF + BR) com DBSCAN, numa distância de até 300 m e
-          no mínimo 5 acidentes por grupo. O score do hotspot é a soma dos pontos dos acidentes do
-          grupo. Os níveis usam percentis do score entre todos os hotspots: crítico (p95), alto
-          (p80), médio (p50) e baixo (abaixo de p50).
+          Os acidentes são agrupados por rodovia (UF + BR) em trechos de até 300 m, com no mínimo 5
+          acidentes por trecho. O score do hotspot é a soma dos pontos dos acidentes do trecho. Os
+          níveis usam percentis do score entre todos os hotspots: crítico (p95), alto (p80), médio
+          (p50) e baixo (abaixo de p50).
         </Text>
         <Text style={[styles.body, { color: colors.textMuted }]}>
           O raio exibido é o percentil 90 das distâncias dos acidentes ao centro do trecho, limitado
-          entre 100 e 500 metros.
+          entre 100 e 500 metros. Como a coordenada da PRF é georreferenciada ao trecho da rodovia
+          (e não ao GPS do acidente), vários acidentes caem no mesmo ponto: o km mostrado é o do
+          grupo dominante de registros.
         </Text>
       </View>
 

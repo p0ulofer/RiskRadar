@@ -47,9 +47,9 @@ Formato: **decisão**, **motivo** e **alternativas descartadas**.
 - **Motivo:** é a leitura da interface pedida na missão e permite comparar o recorte completo.
 - **Alternativa descartada:** tratar os dois valores como uma lista de apenas dois anos.
 
-### D9. DBSCAN por (UF, BR)
-- **Decisão:** rodar DBSCAN separadamente para cada par (UF, BR), com `haversine`, coordenadas em radianos, `algorithm="ball_tree"`, `eps = 300/6371000` e `min_samples = 5`. Ruído é descartado.
-- **Motivo:** evita fundir rodovias diferentes e segue exatamente os parâmetros da missão.
+### D9. Clustering por (UF, BR), com raio de 300 m e mínimo de 5 acidentes
+- **Decisão:** agrupar separadamente para cada par (UF, BR), com `haversine` e coordenadas em radianos, usando a vizinhança de 300 m e o mínimo de 5 acidentes. O método final de seleção dos trechos é o de **picos de densidade com supressão de sobreposição** (ver D24); antes, a seleção usava DBSCAN puro.
+- **Motivo:** evita fundir rodovias diferentes e segue exatamente os parâmetros da missão (300 m / 5 acidentes).
 - **Alternativa descartada:** clusterizar tudo de uma vez e filtrar por BR depois.
 
 ### D10. Raio do hotspot
@@ -83,7 +83,7 @@ Formato: **decisão**, **motivo** e **alternativas descartadas**.
 
 ### D16. Enriquecimento OSM por hotspot, em lotes e com cache
 - **Decisão:** consultar a Overpass API para cada hotspot, mas agrupar até 150 hotspots por requisição; contar `traffic_signals`, `crossing`, `traffic_calming` e `speed_camera` dentro de `radius_m + 100 m`; gravar cada resposta em cache SHA-1 em `pipeline/data/cache/osm/`; usar pausa entre requisições e retry com backoff exponencial; gerar `schema_version = 2` e campo opcional `infra`.
-- **Motivo:** 2.546 requisições individuais seriam lentas e hostis ao serviço; o cache torna reexecuções baratas. Um elemento pode ser contado em dois hotspots se os raios se sobrepuserem, o que reflete a área de cada trecho.
+- **Motivo:** 3.165 requisições individuais seriam lentas e hostis ao serviço; o cache torna reexecuções baratas. Um elemento pode ser contado em dois hotspots se os raios se sobrepuserem, o que reflete a área de cada trecho.
 - **Endpoint:** `overpass-api.de` respondia 502/504 durante a execução; foi usado o espelho `https://overpass.openstreetmap.fr/api/interpreter`, configurável com `--osm-endpoint`. A falha é tratada como opcional: após 3 lotes consecutivos com erro, o build segue sem `infra` e com schema 1.
 - **Alternativas descartadas:** uma requisição por hotspot (lenta) e baixar um extrato Geofabrik do Brasil (centenas de MB, fora do escopo).
 
@@ -105,13 +105,20 @@ Formato: **decisão**, **motivo** e **alternativas descartadas**.
 
 ### D20. Índice espacial em grade
 - **Decisão:** indexar hotspots em células de 0,1° e consultar apenas as células vizinhas para filtros, mapa e “Perto de mim”.
-- **Motivo:** evita varrer 2.546 hotspots a cada atualização de posição no modo alerta.
+- **Motivo:** evita varrer 3.165 hotspots a cada atualização de posição no modo alerta.
 - **Alternativa descartada:** k-d tree (melhoraria consultas, mas adiciona dependência e complexidade para o volume atual).
 
 ### D21. Carregamento tardio do `expo-notifications`
 - **Decisão:** não importar `expo-notifications` no topo dos módulos. A ponte `src/lib/notifications.ts` faz `require` sob demanda dentro de `try/catch`; se o módulo nativo não existir, o status vira `unavailable` e o app segue com banner e voz.
 - **Motivo:** no Expo Go, o `import` estático de `expo-notifications` pode lançar `Cannot find native module 'ExpoTopicSubscriptionModule'` e derrubar o layout raiz inteiro (as rotas apareciam sem default export).
 - **Alternativa descartada:** exigir um development build só para notificações, o que contraria o requisito de rodar no Expo Go.
+
+### D24. Picos de densidade em vez de DBSCAN puro (anti-corrente)
+- **Problema:** o DBSCAN puro conectava acidentes vizinhos por densidade-alcançável. Numa rodovia movimentada, cada acidente tem vizinhos a menos de 300 m, então a rodovia inteira virava **um** hotspot: `BR-101/PE` tinha **2.709 acidentes em 87 km** (km 1–88) e o marcador aparecia no centroide, no meio de Recife, sem relação com a concentração real. Os cortes de nível (p50/p80/p95) ficavam enviesados por esses mega-clusters.
+- **Decisão:** manter a regra da missão ("mais de 5 acidentes num raio de 300 m") e trocar apenas a *seleção* dos trechos: candidatos = acidentes com ≥ 5 acidentes no raio; seleção gulosa por densidade com supressão de sobreposição (um pico é aceito só se nenhum pico aceito estiver a menos de 300 m). Cada pico vira um trecho com os acidentes a até 300 m dele.
+- **Resultado:** `BR-101/PE` passou de 2.709 → 184 acidentes no trecho mais denso; o total de hotspots ficou em 3.165 (2.546 antes) e a extensão de km de um trecho desceu de até 840 km para mediana de 0,7 km. Os picos são aceitos com no mínimo 600 m de distância entre si, para que os círculos dos trechos não se sobreponham no mapa.
+- **Km do trecho:** a coordenada da PRF é georreferenciada ao trecho (não ao GPS do acidente) e o `km` reportado diverge dentro do mesmo ponto (a BR-116/BA tem numeração reiniciada). Por isso `km_min`/`km_max` passam a ser os percentis 10–90 do grupo dominante de km (± 1 km do km mais frequente), com `km_mediana` como referência, e o app mostra `km ~X` quando a faixa é larga demais.
+- **Alternativas descartadas:** reduzir o `eps` do DBSCAN (fragmentava trechos densos legítimos e perdiachains inteiros); atribuição exclusiva de cada acidente a um pico (uma corrente uniforme de acidentes ficava com 3 acidentes por trecho e sumia do mapa).
 
 ### D22. Mapa com Leaflet/OpenStreetMap em WebView
 - **Decisão:** substituir `react-native-maps` por `react-native-webview` com Leaflet 1.9.4 e tiles do OpenStreetMap. O JS/CSS do Leaflet é gerado por `scripts/generate-leaflet-assets.js` e embutido no bundle; os marcadores e o círculo do hotspot são sincronizados por mensagens entre o app e o WebView.
