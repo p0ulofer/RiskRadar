@@ -16,7 +16,6 @@ A inspeção dos arquivos reais de 2022–2026 mostrou que eles já são
 from __future__ import annotations
 
 import csv
-import io
 import logging
 import re
 import tempfile

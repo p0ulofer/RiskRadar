@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import logging
-import re
 from collections import Counter
 from typing import Iterable
 
@@ -58,6 +57,18 @@ def clean_text(series: pd.Series) -> pd.Series:
     return cleaned.replace({"nan": "", "None": "", "NA": ""})
 
 
+def title_pt(text: str) -> str:
+    """Capitaliza nomes em português mantendo conectores minúsculos."""
+    small_words = {"de", "da", "do", "das", "dos", "e"}
+    words = str(text).lower().split(" ")
+    result = []
+    for index, word in enumerate(words):
+        if not word:
+            continue
+        result.append(word if index > 0 and word in small_words else word.capitalize())
+    return " ".join(result)
+
+
 def clean(
     df: pd.DataFrame,
     ufs: Iterable[str] | None = None,
@@ -75,7 +86,14 @@ def clean(
     if "id" not in work.columns:
         raise ValueError("Coluna obrigatória 'id' não encontrada nos arquivos de entrada.")
     if "ano" not in work.columns:
-        raise ValueError("Não foi possível determinar o ano dos acidentes.")
+        if "data_inversa" in work.columns:
+            work["ano"] = pd.to_datetime(
+                work["data_inversa"].astype(str).str.strip(),
+                format="%Y-%m-%d",
+                errors="coerce",
+            ).dt.year
+        else:
+            raise ValueError("Não foi possível determinar o ano dos acidentes.")
 
     for column in ["latitude", "longitude", "br", "km"] + config.VICTIM_COLUMNS:
         if column not in work.columns:
@@ -146,7 +164,7 @@ def clean(
         work[column] = clean_text(work[column])
 
     # Capitalização consistente em textos categóricos.
-    work["municipio"] = work["municipio"].str.title()
+    work["municipio"] = work["municipio"].map(title_pt)
     work["fase_dia"] = work["fase_dia"].str.title()
     work["uf"] = work["uf"].str.upper()
     work["classificacao_acidente"] = work["classificacao_acidente"].replace({"Na": np.nan})
