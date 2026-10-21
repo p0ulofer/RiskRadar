@@ -221,7 +221,9 @@ localização só é usada no aparelho.
   por fase do dia e por ano (barras com `View`, sem lib de gráficos),
   infraestrutura OSM quando disponível e botão para abrir no app de mapas.
 - **Perto de mim:** permissão de localização em primeiro plano, 20 hotspots
-  mais próximos com distância, nível, BR e município.
+  mais próximos com distância, nível, BR e município. Ao abrir um item, o botão
+  **Mostrar no mapa do RiskRadar** fecha os detalhes, vai para a aba Mapa,
+  centraliza o trecho e o destaca mesmo que os filtros atuais escondam o nível.
 - **Alertas em primeiro plano:** switch em Configurações, raio de
   500/1000/2000 m, nível mínimo, banner, notificação local e voz pt-BR
   opcional. Cooldown de 10 min por hotspot e 1 alerta a cada 30 s.

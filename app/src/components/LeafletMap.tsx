@@ -11,6 +11,7 @@ interface LeafletMapProps {
   hotspots: Hotspot[];
   selected: Hotspot | null;
   focus: GeoRegion | null;
+  focusKey?: string | null;
   colorForLevel: (level: Level) => string;
   backgroundColor: string;
   onSelect: (hotspot: Hotspot) => void;
@@ -112,6 +113,7 @@ export function LeafletMap({
   hotspots,
   selected,
   focus,
+  focusKey,
   colorForLevel,
   backgroundColor,
   onSelect,
@@ -161,14 +163,14 @@ export function LeafletMap({
 
   useEffect(() => {
     if (!loaded || !focus) return;
-    const key = `${focus.latitude.toFixed(5)}:${focus.longitude.toFixed(5)}`;
+    const key = `${focusKey ?? ''}:${focus.latitude.toFixed(5)}:${focus.longitude.toFixed(5)}`;
     if (lastFocusRef.current === key) return;
     lastFocusRef.current = key;
     const zoom = zoomForDelta(focus.longitudeDelta);
     webRef.current?.injectJavaScript(
       `window.riskradarFocus(${focus.latitude}, ${focus.longitude}, ${zoom}); true;`
     );
-  }, [loaded, focus]);
+  }, [loaded, focus, focusKey]);
 
   const handleMessage = (event: WebViewMessageEvent) => {
     let message: unknown;

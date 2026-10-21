@@ -118,3 +118,8 @@ Formato: **decisão**, **motivo** e **alternativas descartadas**.
 - **Motivo:** o Google Maps nativo não é mais suportado no Expo Go (a área do mapa ficava em branco). WebView/Leaflet funciona em Android e iOS no Expo Go, sem chave de API, e mantém o mapa alinhado à fonte OSM já usada no enriquecimento.
 - **Limitação:** os tiles do OSM exigem internet; os dados dos hotspots continuam offline. Para uso em escala, trocar por um provedor de tiles próprio.
 - **Alternativa descartada:** `expo-maps` (exige development build e não roda no Expo Go) e build nativo com chave do Google Maps (fora do escopo).
+
+### D23. “Mostrar no mapa” a partir de “Perto de mim”
+- **Decisão:** o detalhe de um hotspot aberto pela aba “Perto de mim” tem o botão **Mostrar no mapa do RiskRadar**. Ele fecha a pilha de detalhes e navega para a aba Mapa com `hotspotId` e um `focusAt` (nonce), que centraliza o ponto, seleciona o card e desenha o círculo do hotspot. O marcador é incluído mesmo se os filtros atuais excluírem o nível.
+- **Motivo:** mantém o usuário no app e evita depender de um app de mapas externo; o nonce permite repetir a ação para o mesmo hotspot.
+- **Alternativa descartada:** botão “Ver no mapa” em cada card da lista (duplicaria a ação e aumentaria o ruído visual).

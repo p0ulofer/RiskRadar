@@ -1,5 +1,5 @@
 import * as Location from 'expo-location';
-import { useRouter } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -36,11 +36,42 @@ export default function MapScreen() {
   const { colors, levelColor } = useTheme();
   const { document, ready } = useData();
   const { settings, updateFilters } = useSettings();
+  const { hotspotId, focusAt } = useLocalSearchParams<{
+    hotspotId?: string;
+    focusAt?: string;
+  }>();
 
   const [userRegion, setUserRegion] = useState<GeoRegion | null>(null);
   const [region, setRegion] = useState<GeoRegion>(NORTHEAST_REGION);
-  const [selected, setSelected] = useState<Hotspot | null>(null);
+  const [selectedState, setSelectedState] = useState<Hotspot | null>(null);
+  const [dismissedFocusToken, setDismissedFocusToken] = useState<string | null | undefined>(
+    undefined
+  );
   const [filterOpen, setFilterOpen] = useState(false);
+
+  const focusToken = hotspotId ? `${hotspotId}:${focusAt ?? ''}` : null;
+
+  const targetHotspot = useMemo(
+    () =>
+      ready && hotspotId
+        ? document.hotspots.find((item) => item.id === hotspotId) ?? null
+        : null,
+    [ready, hotspotId, document.hotspots]
+  );
+  const targetRegion = useMemo<GeoRegion | null>(
+    () =>
+      targetHotspot
+        ? {
+            latitude: targetHotspot.lat,
+            longitude: targetHotspot.lng,
+            latitudeDelta: 0.05,
+            longitudeDelta: 0.05,
+          }
+        : null,
+    [targetHotspot]
+  );
+  const selected =
+    targetHotspot && dismissedFocusToken !== focusToken ? targetHotspot : selectedState;
 
   useEffect(() => {
     let cancelled = false;
@@ -82,6 +113,13 @@ export default function MapScreen() {
     return items.filter((hotspot) => hotspot.level === 'alto' || hotspot.level === 'critico');
   }, [index, region, zoomedOut]);
 
+  const mapHotspots = useMemo(() => {
+    if (!selected) return visible;
+    return visible.some((hotspot) => hotspot.id === selected.id)
+      ? visible
+      : [...visible, selected];
+  }, [visible, selected]);
+
   const availableUfs = useMemo(
     () => [...new Set(document.hotspots.map((hotspot) => hotspot.uf))].sort(),
     [document.hotspots]
@@ -97,6 +135,16 @@ export default function MapScreen() {
     `nível ${levelLabel(settings.filters.minLevel).toLowerCase()}+`,
   ].join(' · ');
 
+  const selectHotspot = (hotspot: Hotspot) => {
+    setSelectedState(hotspot);
+    setDismissedFocusToken(focusToken);
+  };
+
+  const closeSelected = () => {
+    setSelectedState(null);
+    setDismissedFocusToken(focusToken);
+  };
+
   if (!ready) {
     return (
       <View style={[styles.loading, { backgroundColor: colors.background }]}>
@@ -111,12 +159,13 @@ export default function MapScreen() {
       {document.meta.fonte === 'sintetico' ? <DemoBanner /> : null}
       <View style={styles.mapWrapper}>
         <LeafletMap
-          hotspots={visible}
+          hotspots={mapHotspots}
           selected={selected}
-          focus={userRegion}
+          focus={targetRegion ?? userRegion}
+          focusKey={targetHotspot ? focusToken : null}
           colorForLevel={levelColor}
           backgroundColor={colors.background}
-          onSelect={setSelected}
+          onSelect={selectHotspot}
           onRegionChange={setRegion}
         />
 
@@ -207,9 +256,7 @@ export default function MapScreen() {
             </Text>
             <View style={styles.cardActions}>
               <Pressable
-                onPress={() => {
-                  setSelected(null);
-                }}
+                onPress={closeSelected}
                 style={[styles.secondaryButton, { borderColor: colors.border }]}
                 accessibilityRole="button"
               >

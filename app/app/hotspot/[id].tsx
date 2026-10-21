@@ -165,14 +165,30 @@ export default function HotspotDetailsScreen() {
       ) : null}
 
       <Pressable
+        onPress={() =>
+          router.dismissTo({
+            pathname: '/',
+            params: { hotspotId: hotspot.id, focusAt: String(Date.now()) },
+          })
+        }
+        style={[styles.button, { backgroundColor: colors.primary }]}
+        accessibilityRole="button"
+        accessibilityLabel="Mostrar este trecho no mapa do RiskRadar"
+      >
+        <Text style={[styles.buttonText, { color: colors.primaryText }]}>
+          Mostrar no mapa do RiskRadar
+        </Text>
+      </Pressable>
+
+      <Pressable
         onPress={() => {
           void openInMaps();
         }}
-        style={[styles.button, { backgroundColor: colors.primary }]}
+        style={[styles.buttonOutline, { borderColor: colors.border }]}
         accessibilityRole="button"
       >
-        <Text style={[styles.buttonText, { color: colors.primaryText }]}>
-          Abrir no app de mapas
+        <Text style={[styles.buttonText, { color: colors.text }]}>
+          Abrir em app de mapas externo
         </Text>
       </Pressable>
 
