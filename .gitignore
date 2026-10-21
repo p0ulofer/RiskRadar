@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.coverage
+htmlcov/
+
+# Dados brutos e intermediários (nunca commitar)
+pipeline/data/raw/*
+!pipeline/data/raw/.gitkeep
+pipeline/data/processed/*
+!pipeline/data/processed/.gitkeep
+pipeline/data/cache/
+*.zip
+
+# Node / Expo
+node_modules/
+.expo/
+dist/
+web-build/
+app/.expo/
+app/node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Testes e cobertura do app
+app/coverage/
+
+# Ambiente e segredos
+.env
+.env.*
+!.env.example
+*.keystore
+*.jks
+
+# Sistema / editores
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
