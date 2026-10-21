@@ -204,6 +204,7 @@ def test_document_with_infra_uses_schema_2():
                 "municipio": "Recife",
                 "km_min": 10.0,
                 "km_max": 12.0,
+                "km_mediana": 11.0,
                 "n_acidentes": 5,
                 "mortos": 0,
                 "feridos_graves": 1,

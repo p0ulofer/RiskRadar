@@ -29,8 +29,20 @@ DEFAULT_YEARS = [2022, 2023, 2024, 2025, 2026]
 # ---------------------------------------------------------------------------
 
 EARTH_RADIUS_M = 6_371_000.0
-DBSCAN_EPS_M = 300.0
-DBSCAN_MIN_SAMPLES = 5
+
+# Raio do trecho: um hotspot é a vizinhança de 300 m em torno de um pico de
+# densidade (>= DBSCAN_MIN_SAMPLES acidentes no mesmo raio).
+HOTSPOT_RADIUS_M = 300.0
+# Mínimo de acidentes dentro do raio para o trecho existir.
+HOTSPOT_MIN_SAMPLES = 5
+# Distância mínima entre dois picos aceitos. Com 2x o raio, as circunferências
+# dos trechos não se sobrepõem: o mapa não mostra vários pontos empilhados no
+# mesmo cruzamento.
+PEAK_MIN_SEPARATION_M = 600.0
+
+# Mantidos por compatibilidade com o comando/CLI e com os testes antigos.
+DBSCAN_EPS_M = HOTSPOT_RADIUS_M
+DBSCAN_MIN_SAMPLES = HOTSPOT_MIN_SAMPLES
 # scikit-learn espera coordenadas em radianos quando métrica = haversine.
 DBSCAN_EPS_RAD = DBSCAN_EPS_M / EARTH_RADIUS_M
 
@@ -38,6 +50,14 @@ DBSCAN_EPS_RAD = DBSCAN_EPS_M / EARTH_RADIUS_M
 RADIUS_PERCENTILE = 90
 RADIUS_MIN_M = 100
 RADIUS_MAX_M = 500
+
+# Percentis do km reportados usados para descrever o trecho. A coordenada da
+# PRF é georreferenciada ao trecho da rodovia, então o km varia dentro do mesmo
+# ponto; min/max puro produziria faixas de dezenas de quilômetros.
+KM_PERCENTILE_LOW = 10
+KM_PERCENTILE_HIGH = 90
+# Janela (em km) usada para achar o grupo dominante de km de um trecho.
+KM_GROUP_TOLERANCE_KM = 1.0
 
 # ---------------------------------------------------------------------------
 # Score de severidade (inspirado na UPS da PRF)

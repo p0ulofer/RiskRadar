@@ -75,6 +75,71 @@ def test_radius_is_clipped_and_score_is_summed():
     assert hotspots.iloc[0]["feridos_graves"] == 12
 
 
+def _chain(br: int, count: int, step_m: float, uf: str = "PE") -> list[dict]:
+    """Acidentes alinhados ao longo de uma rodovia, espaçados de ``step_m``."""
+    rows = []
+    step_deg = step_m / 111_320.0
+    for index in range(count):
+        rows.append(
+            {
+                "id": f"{br}-chain-{index}",
+                "ano": 2024,
+                "uf": uf,
+                "br": br,
+                "latitude": -8.05 + index * step_deg,
+                "longitude": -34.90,
+                "km": 10 + index * step_m / 1000.0,
+                "municipio": "Recife",
+                "causa_acidente": "Falta de atenção",
+                "tipo_acidente": "Colisão traseira",
+                "classificacao_acidente": "Com Vítimas Feridas",
+                "fase_dia": "Pleno Dia",
+                "mortos": 0,
+                "feridos_graves": 1,
+                "feridos_leves": 2,
+                "ilesos": 1,
+                "pontos": 4,
+            }
+        )
+    return rows
+
+
+def test_corrente_ao_longo_da_rodovia_nao_vira_um_hotspot_so():
+    # 21 acidentes espaçados de 150 m: o DBSCAN puro encadeava tudo em um
+    # único cluster de 3 km (o bug reportado: "BR-101, km 1-88, 2791 acidentes").
+    rows = _chain(101, 21, 150.0)
+    hotspots = cluster_hotspots(pd.DataFrame(rows))
+    assert len(hotspots) > 1
+    assert int(hotspots["n_acidentes"].max()) <= 8
+    for _, hotspot in hotspots.iterrows():
+        assert int(hotspot["radius_m"]) <= 500
+        # O trecho não pode se estender por vários quilômetros.
+        assert float(hotspot["km_max"]) - float(hotspot["km_min"]) <= 1.5
+
+
+def test_trecho_denso_continua_sendo_um_hotspot_unico():
+    rows = _accidents(101, (-8.05, -34.90), 10)
+    hotspots = cluster_hotspots(pd.DataFrame(rows))
+    assert len(hotspots) == 1
+    assert int(hotspots.iloc[0]["n_acidentes"]) == 10
+
+
+def test_trechos_distintos_nao_se_misturam():
+    rows = _accidents(101, (-8.05, -34.90), 10) + _accidents(232, (-8.28, -35.97), 10)
+    hotspots = cluster_hotspots(pd.DataFrame(rows))
+    assert len(hotspots) == 2
+    assert int(hotspots["n_acidentes"].sum()) == 20
+
+
+def test_picos_perto_nao_viram_trechos_sobrepostos():
+    # Dois pontos densos a ~400 m (menos que a separação mínima de 600 m)
+    # viram um único trecho, e não dois círculos sobrepostos no mapa.
+    rows = _accidents(101, (-8.05, -34.90), 10)
+    rows += _accidents(101, (-8.0465, -34.90), 10)
+    hotspots = cluster_hotspots(pd.DataFrame(rows))
+    assert len(hotspots) == 1
+
+
 def test_export_builds_valid_document_with_stable_ids():
     rows = _accidents(101, (-8.05, -34.90), 10) + _accidents(232, (-8.28, -35.97), 10)
     frame = add_severity_points(pd.DataFrame(rows))

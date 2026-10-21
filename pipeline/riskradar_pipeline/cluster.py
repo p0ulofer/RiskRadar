@@ -1,7 +1,25 @@
-"""Clusterização geográfica dos acidentes com DBSCAN (haversine).
+"""Detecção de hotspots de acidentes (haversine).
 
 Cada par (UF, BR) é processado separadamente para nunca fundir rodovias
-distintas. O ruído (label -1) é descartado.
+distintas.
+
+Método: **picos de densidade** com supressão de sobreposição.
+
+1. Para cada acidente, conta-se quantos existem num raio de 300 m
+   (a mesma definição de núcleo do DBSCAN com ``eps=300`` e ``min_samples=5``).
+2. Os acidentes com contagem >= ``HOTSPOT_MIN_SAMPLES`` são candidatos a pico.
+3. Candidatos são ordenados por densidade (maior primeiro) e greedy: um pico é
+   aceito só se nenhum pico já aceito estiver a menos de 300 m dele.
+4. Cada acidente é atribuído ao pico aceito mais próximo (até 300 m), o que
+   impede contagem dupla. Trechos que perdem pontos para um pico mais denso e
+   ficam com menos de ``HOTSPOT_MIN_SAMPLES`` acidentes são descartados.
+
+Por que não DBSCAN puro: o DBSCAN conecta acidentes vizinhos por
+densidade-alcançável, então numa rodovia movimentada os pontos se encadeiam e
+80 km de BR-101 viram um único "hotspot" de milhares de acidentes, com o
+marcador desenhado no centroide (longe da concentração real). O método de
+picos mantém exatamente a regra da missão — "mais de 5 acidentes num raio de
+300 m" — sem o efeito de corrente.
 """
 
 from __future__ import annotations
@@ -11,7 +29,7 @@ from collections import Counter
 
 import numpy as np
 import pandas as pd
-from sklearn.cluster import DBSCAN
+from sklearn.neighbors import BallTree
 
 from . import config
 
@@ -59,6 +77,99 @@ def _counts_by(values: pd.Series) -> dict:
     return {str(key): int(count) for key, count in sorted(counts.items())}
 
 
+def _coords(subset: pd.DataFrame) -> np.ndarray:
+    """Coordenadas em radianos (métrica haversine do scikit-learn)."""
+    return np.radians(subset[["latitude", "longitude"]].to_numpy(dtype=float))
+
+
+def _density_counts(subset: pd.DataFrame, radius_m: float) -> np.ndarray:
+    """Para cada acidente, quantos existem a até ``radius_m`` (incluindo ele)."""
+    coords = _coords(subset)
+    tree = BallTree(coords, metric="haversine")
+    counts = tree.query_radius(coords, r=radius_m / config.EARTH_RADIUS_M, count_only=True)
+    return np.asarray(counts, dtype=int)
+
+
+def _select_peaks(
+    subset: pd.DataFrame,
+    densities: np.ndarray,
+    radius_m: float,
+    min_samples: int,
+    separation_m: float,
+) -> np.ndarray:
+    """Seleciona picos de densidade sem sobreposição (supressão não máxima).
+
+    Candidatos são os acidentes com pelo menos ``min_samples`` acidentes no
+    raio. Entra primeiro o mais denso; um candidato é aceito apenas se não
+    houver pico aceito a menos de ``separation_m`` dele. É isso que impede a
+    "corrente" ao longo da rodovia: cada pico vira um trecho local.
+    """
+    lats = subset["latitude"].to_numpy(dtype=float)
+    lngs = subset["longitude"].to_numpy(dtype=float)
+    candidates = np.flatnonzero(densities >= min_samples)
+    # Desempate determinístico: densidade decrescente, depois posição.
+    order = sorted(candidates.tolist(), key=lambda i: (-int(densities[i]), lats[i], lngs[i]))
+
+    peaks: list[int] = []
+    for index in order:
+        if peaks:
+            distances = haversine_m(lats[index], lngs[index], lats[peaks], lngs[peaks])
+            if bool(np.any(distances <= separation_m)):
+                continue
+        peaks.append(index)
+    return np.array(peaks, dtype=int)
+
+
+def _neighborhoods(
+    subset: pd.DataFrame, peaks: np.ndarray, radius_m: float
+) -> tuple[dict[int, list[int]], np.ndarray]:
+    """Acidentes a até ``radius_m`` de cada pico, e a máscara dos cobertos.
+
+    As vizinhanças podem se sobrepor levemente (picos ficam a 300 m ou mais),
+    como em um mapa de densidade: um acidente perto da fronteira pode contar
+    para dois trechos vizinhos. Por isso a contagem de acidentes por hotspot é
+    a densidade local (regra da missão) e não uma partição dos acidentes.
+    """
+    coords = _coords(subset)
+    if len(peaks) == 0:
+        return {}, np.zeros(len(subset), dtype=bool)
+    peak_tree = BallTree(coords[peaks], metric="haversine")
+    radius_rad = radius_m / config.EARTH_RADIUS_M
+    neighbors = peak_tree.query_radius(coords, r=radius_rad)
+    covered = np.zeros(len(subset), dtype=bool)
+    members: dict[int, list[int]] = {int(peak): [] for peak in peaks.tolist()}
+    for point, peak_indexes in enumerate(neighbors):
+        for position in np.asarray(peak_indexes, dtype=int).ravel():
+            peak = int(peaks[position])
+            members[peak].append(point)
+            covered[point] = True
+    return members, covered
+
+
+def _km_summary(km: pd.Series) -> tuple[float, float, float]:
+    """(km_min, km_max, km_mediana) robustos para descrever o trecho.
+
+    O km reportado pela PRF nem sempre é consistente: a mesma coordenada
+    aparece com numerações diferentes (a BR-116/BA, por exemplo, tem trechos
+    com contagem de km reiniciada). Por isso usamos o grupo dominante de km
+    (janela de 1 km em torno do valor mais frequente) e, dentro dele, os
+    percentis 10–90 e a mediana.
+    """
+    values = km.dropna().to_numpy(dtype=float)
+    if values.size == 0:
+        return 0.0, 0.0, 0.0
+    counts = pd.Series(np.round(values)).value_counts()
+    mode_km = float(counts.index[0])
+    dominant = values[np.abs(values - mode_km) <= config.KM_GROUP_TOLERANCE_KM]
+    if dominant.size < 3:
+        # Sem grupo dominante com pelo menos 3 acidentes: a dispersão é real.
+        dominant = values
+    low = float(np.percentile(dominant, config.KM_PERCENTILE_LOW))
+    high = float(np.percentile(dominant, config.KM_PERCENTILE_HIGH))
+    median = float(np.median(dominant))
+    return low, high, median
+
+
 def _cluster_record(group: pd.DataFrame) -> dict:
     lats = group["latitude"].to_numpy(dtype=float)
     lngs = group["longitude"].to_numpy(dtype=float)
@@ -68,9 +179,12 @@ def _cluster_record(group: pd.DataFrame) -> dict:
     radius = float(np.percentile(distances, config.RADIUS_PERCENTILE))
     radius = float(np.clip(radius, config.RADIUS_MIN_M, config.RADIUS_MAX_M))
 
-    km = group["km"].dropna()
-    km_min = float(km.min()) if not km.empty else 0.0
-    km_max = float(km.max()) if not km.empty else 0.0
+    # A coordenada da PRF é georreferenciada ao trecho da rodovia, não ao GPS do
+    # acidente: muitos acidentes caem no mesmo ponto e o km reportado varia
+    # dentro dele. Por isso o trecho é descrito por percentis (10–90) e pela
+    # mediana do grupo dominante, e não pelo mínimo/máximo (que viravam
+    # "km 1–88" num só ponto).
+    km_min, km_max, km_mediana = _km_summary(group["km"])
 
     return {
         "lat": center_lat,
@@ -81,6 +195,7 @@ def _cluster_record(group: pd.DataFrame) -> dict:
         "municipio": _mode(group["municipio"]),
         "km_min": round(km_min, 1),
         "km_max": round(km_max, 1),
+        "km_mediana": round(km_mediana, 1),
         "n_acidentes": int(len(group)),
         "mortos": int(group["mortos"].sum()),
         "feridos_graves": int(group["feridos_graves"].sum()),
@@ -111,26 +226,27 @@ def cluster_hotspots(df: pd.DataFrame) -> pd.DataFrame:
     groups = 0
     for (uf, br), group in df.groupby(["uf", "br"], sort=True):
         groups += 1
-        if len(group) < config.DBSCAN_MIN_SAMPLES:
+        if len(group) < config.HOTSPOT_MIN_SAMPLES:
             noise_total += len(group)
             continue
 
-        coords = np.radians(group[["latitude", "longitude"]].to_numpy(dtype=float))
-        model = DBSCAN(
-            eps=config.DBSCAN_EPS_RAD,
-            min_samples=config.DBSCAN_MIN_SAMPLES,
-            metric="haversine",
-            algorithm="ball_tree",
+        densities = _density_counts(group, config.HOTSPOT_RADIUS_M)
+        peaks = _select_peaks(
+            group,
+            densities,
+            config.HOTSPOT_RADIUS_M,
+            config.HOTSPOT_MIN_SAMPLES,
+            config.PEAK_MIN_SEPARATION_M,
         )
-        labels = model.fit_predict(coords)
-        noise = int(np.sum(labels == -1))
-        noise_total += noise
+        members_by_peak, covered = _neighborhoods(
+            group, peaks, config.HOTSPOT_RADIUS_M
+        )
 
-        for label in sorted(set(labels)):
-            if label == -1:
+        for members in members_by_peak.values():
+            if len(members) < config.HOTSPOT_MIN_SAMPLES:
                 continue
-            subset = group.loc[labels == label]
-            records.append(_cluster_record(subset))
+            records.append(_cluster_record(group.iloc[members]))
+        noise_total += int(len(group) - covered.sum())
 
     hotspots = pd.DataFrame.from_records(records)
     if not hotspots.empty:
