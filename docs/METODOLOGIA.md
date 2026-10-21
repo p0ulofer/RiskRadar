@@ -88,7 +88,30 @@ O arquivo `hotspots.json` inclui um bloco `meta` com versão de schema, data de
 geração, `data_version`, fonte (`prf` ou `sintetico`), UFs, anos, parâmetros,
 cortes de nível e totais.
 
-## 6. Limitações
+## 6. Enriquecimento com OpenStreetMap (opcional)
+
+Com `--with-infra`, cada hotspot é consultado na Overpass API num raio de
+`radius_m + 100 m`. São contados:
+
+- `traffic_signals` (semáforos);
+- `crossing` (faixas de pedestre);
+- `traffic_calming` (lombadas, platôs e outros redutores);
+- `speed_camera` (câmeras/radares mapeados).
+
+A consulta agrupa vários hotspots por requisição, usa cache em disco e retry
+com backoff. O resultado é gravado no campo opcional `infra` e eleva o
+`schema_version` para 2. O app continua compatível com documentos sem esse
+campo (schema 1).
+
+No build de referência, todos os 2.546 hotspots foram enriquecidos (17 lotes,
+sem falhas), somando 220 semáforos, 801 faixas de pedestre, 874 redutores de
+velocidade e 284 câmeras de velocidade.
+
+**Importante:** a ausência de um item no OSM não prova que ele não existe na
+via; o mapa colaborativo pode estar desatualizado ou incompleto. A contagem é
+informativa e não substitui vistoria ou sinalização oficial.
+
+## 7. Limitações
 
 - **Dados históricos não preveem acidentes futuros.** O mapa mostra onde
   acidentes ocorreram no passado, não onde ocorrerão.

@@ -59,6 +59,22 @@ LEVEL_PERCENTILES = {
 LEVELS = ["baixo", "medio", "alto", "critico"]
 
 # ---------------------------------------------------------------------------
+# Enriquecimento opcional com OpenStreetMap (Overpass API)
+# ---------------------------------------------------------------------------
+
+OSM_OVERPASS_URL = "https://overpass-api.de/api/interpreter"
+OSM_CACHE_DIR = "data/cache/osm"
+# Hotspots por consulta: agrupa pontos próximos e reduz o número de requisições.
+OSM_BATCH_SIZE = 25
+# Pausa mínima entre requisições HTTP (a Overpass limita a taxa de uso).
+OSM_PAUSE_S = 2.0
+OSM_TIMEOUT_S = 60
+OSM_RETRIES = 4
+OSM_RADIUS_PADDING_M = 100
+# Aborta após esta quantidade de lotes consecutivos com falha.
+OSM_MAX_CONSECUTIVE_FAILURES = 3
+
+# ---------------------------------------------------------------------------
 # Exportação
 # ---------------------------------------------------------------------------
 

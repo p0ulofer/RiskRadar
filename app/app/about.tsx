@@ -17,6 +17,7 @@ const PRF_URL =
 export default function AboutScreen() {
   const { colors } = useTheme();
   const { document, source } = useData();
+  const hasInfra = document.hotspots.some((hotspot) => hotspot.infra !== undefined);
 
   return (
     <ScrollView
@@ -99,6 +100,21 @@ export default function AboutScreen() {
           entre 100 e 500 metros.
         </Text>
       </View>
+
+      {hasInfra ? (
+        <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+          <Text style={[styles.title, { color: colors.text }]}>Infraestrutura no entorno</Text>
+          <Text style={[styles.body, { color: colors.textMuted }]}>
+            Quando disponível, os detalhes do trecho mostram a contagem de semáforos, faixas de
+            pedestre, redutores de velocidade e câmeras num raio de 100 m além do hotspot. Os dados
+            vêm do OpenStreetMap, que é colaborativo e pode estar incompleto ou desatualizado — a
+            ausência de um item não prova que ele não existe na via.
+          </Text>
+          <Text style={[styles.body, { color: colors.textMuted }]}>
+            © colaboradores do OpenStreetMap, disponibilizado sob a licença ODbL.
+          </Text>
+        </View>
+      ) : null}
 
       <View style={[styles.warning, { backgroundColor: colors.surface, borderColor: colors.danger }]}>
         <Text style={[styles.warningTitle, { color: colors.danger }]}>Aviso importante</Text>

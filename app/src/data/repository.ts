@@ -5,6 +5,7 @@ import type { Hotspot, HotspotsDocument, Level } from '@/types/hotspots';
 
 const CACHE_FILENAME = 'riskradar-hotspots.json';
 const LEVELS: Level[] = ['baixo', 'medio', 'alto', 'critico'];
+const INFRA_KEYS = ['traffic_signals', 'crossing', 'traffic_calming', 'speed_camera'] as const;
 
 export type LoadSource = 'cache' | 'seed';
 
@@ -52,6 +53,12 @@ export function isHotspot(value: unknown): value is Hotspot {
   if (!Array.isArray(value.top_causas) || !value.top_causas.every(isCountItem)) return false;
   if (!Array.isArray(value.top_tipos) || !value.top_tipos.every(isCountItem)) return false;
   if (!isRecord(value.fase_dia) || !isRecord(value.por_ano)) return false;
+  // 'infra' é opcional (schema 1 sem enriquecimento, schema 2 com OSM).
+  if (value.infra !== undefined) {
+    if (!isRecord(value.infra)) return false;
+    const infra = value.infra;
+    if (!INFRA_KEYS.every((key) => typeof infra[key] === 'number')) return false;
+  }
   return true;
 }
 

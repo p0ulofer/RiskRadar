@@ -81,6 +81,29 @@ Formato: **decisão**, **motivo** e **alternativas descartadas**.
 - **Decisão:** executar a fase 8 apenas após as fases 1–7 estarem completas e commitadas; se a Overpass API falhar, registrar e seguir.
 - **Motivo:** a própria missão condiciona a fase opcional.
 
+### D16. Enriquecimento OSM por hotspot, em lotes e com cache
+- **Decisão:** consultar a Overpass API para cada hotspot, mas agrupar até 150 hotspots por requisição; contar `traffic_signals`, `crossing`, `traffic_calming` e `speed_camera` dentro de `radius_m + 100 m`; gravar cada resposta em cache SHA-1 em `pipeline/data/cache/osm/`; usar pausa entre requisições e retry com backoff exponencial; gerar `schema_version = 2` e campo opcional `infra`.
+- **Motivo:** 2.546 requisições individuais seriam lentas e hostis ao serviço; o cache torna reexecuções baratas. Um elemento pode ser contado em dois hotspots se os raios se sobrepuserem, o que reflete a área de cada trecho.
+- **Endpoint:** `overpass-api.de` respondia 502/504 durante a execução; foi usado o espelho `https://overpass.openstreetmap.fr/api/interpreter`, configurável com `--osm-endpoint`. A falha é tratada como opcional: após 3 lotes consecutivos com erro, o build segue sem `infra` e com schema 1.
+- **Alternativas descartadas:** uma requisição por hotspot (lenta) e baixar um extrato Geofabrik do Brasil (centenas de MB, fora do escopo).
+
 ## Fase 3–7 — App
 
-As decisões do app estão registradas nas seções seguintes, acrescentadas durante a execução.
+### D17. Expo SDK 58 e Expo Go
+- **Decisão:** usar Expo SDK 58, `expo-router` e TypeScript strict; dependências nativas apenas as suportadas pelo Expo Go.
+- **Motivo:** a missão exige execução no Expo Go, sem build nativo.
+- **Observação:** `expo` foi fixado em `58.0.16` porque `58.0.17` pedia `@expo/cli@^58.1.14`, versão ainda não publicada. O pacote `expo` foi incluído em `expo.install.exclude` para o `expo-doctor` não acusar a diferença de patch; os demais checks passam.
+
+### D18. Dados locais: seed + cache + atualização opcional
+- **Decisão:** embarcar `hotspots.json` em `app/assets/data/` como seed; na inicialização, usar cache em arquivo se válido e cair para o seed em qualquer erro; atualização remota só ocorre se `EXPO_PUBLIC_DATA_URL` estiver definida e a `data_version` remota for diferente.
+- **Motivo:** o app precisa abrir offline e nunca ficar inutilizável por JSON corrompido ou falta de rede.
+
+### D19. Alertas somente em primeiro plano
+- **Decisão:** monitorar a posição com `watchPositionAsync` (precisão balanceada, `distanceInterval` de 50 m) apenas enquanto o app está aberto; notificações locais, banner e voz (opcional) ao entrar no raio configurado.
+- **Motivo:** é o escopo explícito da missão; alertas em segundo plano exigiriam tarefa nativa e permissões adicionais, incompatíveis com Expo Go.
+- **Regras:** cooldown de 10 minutos por hotspot e no máximo 1 alerta a cada 30 segundos; nível mínimo padrão `alto`.
+
+### D20. Índice espacial em grade
+- **Decisão:** indexar hotspots em células de 0,1° e consultar apenas as células vizinhas para filtros, mapa e “Perto de mim”.
+- **Motivo:** evita varrer 2.546 hotspots a cada atualização de posição no modo alerta.
+- **Alternativa descartada:** k-d tree (melhoraria consultas, mas adiciona dependência e complexidade para o volume atual).

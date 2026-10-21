@@ -9,7 +9,7 @@ import {
   refreshFromRemote,
   seedDocument,
 } from '@/data/repository';
-import type { HotspotsDocument } from '@/types/hotspots';
+import type { HotspotInfra, HotspotsDocument } from '@/types/hotspots';
 
 jest.mock('expo-file-system/legacy', () => ({
   documentDirectory: 'file:///documents/',
@@ -85,6 +85,25 @@ describe('repository', () => {
     expect(parseHotspotsDocument(JSON.stringify(seedDocument)).meta.total_hotspots).toBeGreaterThan(0);
     expect(() => parseHotspotsDocument('{}')).toThrow('Formato de dados inválido');
     expect(() => parseHotspotsDocument('não é json')).toThrow('JSON inválido');
+  });
+
+  it('aceita infra opcional e rejeita infra malformada', () => {
+    const withInfra = cloneSeed();
+    withInfra.hotspots[0].infra = {
+      traffic_signals: 1,
+      crossing: 2,
+      traffic_calming: 0,
+      speed_camera: 0,
+    };
+    expect(isHotspotsDocument(withInfra)).toBe(true);
+
+    const withoutInfra = cloneSeed();
+    delete withoutInfra.hotspots[0].infra;
+    expect(isHotspotsDocument(withoutInfra)).toBe(true);
+
+    const malformed = cloneSeed();
+    malformed.hotspots[0].infra = { traffic_signals: '1' } as unknown as HotspotInfra;
+    expect(isHotspotsDocument(malformed)).toBe(false);
   });
 
   it('encontra hotspot por id', () => {

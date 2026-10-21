@@ -8,7 +8,7 @@ import logging
 import sys
 from pathlib import Path
 
-from . import cluster, config, export, load, score, synthetic
+from . import cluster, config, export, load, osm, score, synthetic
 from .clean import clean
 
 logger = logging.getLogger("riskradar")
@@ -59,7 +59,29 @@ def _build(args: argparse.Namespace) -> int:
         return 1
     hotspots, cuts = score.assign_levels(hotspots)
 
-    schema_version = 2 if args.with_infra and "infra" in hotspots.columns else config.SCHEMA_VERSION
+    schema_version = config.SCHEMA_VERSION
+    infra_totals = None
+    if args.with_infra:
+        client = osm.OverpassClient(
+            endpoint=args.osm_endpoint,
+            cache_dir=args.osm_cache_dir,
+            pause_s=args.osm_pause,
+            timeout_s=args.osm_timeout,
+        )
+        try:
+            hotspots = osm.enrich_hotspots(
+                hotspots,
+                client=client,
+                batch_size=args.osm_batch_size,
+                padding_m=args.osm_padding,
+            )
+            schema_version = 2
+            infra_totals = osm.infra_totals(hotspots)
+        except Exception as exc:  # falha de rede não deve impedir a entrega do app
+            logger.warning(
+                "Enriquecimento OSM indisponível (%s); seguindo sem o campo infra.", exc
+            )
+
     document = export.build_document(
         hotspots,
         cuts=cuts,
@@ -86,6 +108,7 @@ def _build(args: argparse.Namespace) -> int:
         "hotspots": len(document["hotspots"]),
         "json_mb": round(outputs["size_bytes"] / 1_048_576, 3),
         "niveis": {},
+        "infra": infra_totals,
         "arquivos": outputs,
     }
     levels: dict[str, int] = {}
@@ -113,7 +136,42 @@ def _parser() -> argparse.ArgumentParser:
     build.add_argument("--app-data-dir", default=None, help="diretório alternativo de destino no app")
     build.add_argument("--synthetic", action="store_true", help="força o uso de dados sintéticos")
     build.add_argument("--synthetic-rows", type=int, default=30_000, help="acidentes sintéticos")
-    build.add_argument("--with-infra", action="store_true", help="marca schema 2 quando houver campo infra")
+    build.add_argument(
+        "--with-infra",
+        action="store_true",
+        help="enriquece os hotspots com infraestrutura do OpenStreetMap (schema 2)",
+    )
+    build.add_argument(
+        "--osm-endpoint",
+        default=config.OSM_OVERPASS_URL,
+        help="endpoint da Overpass API",
+    )
+    build.add_argument(
+        "--osm-cache-dir",
+        default=config.OSM_CACHE_DIR,
+        help="cache das respostas da Overpass API",
+    )
+    build.add_argument(
+        "--osm-timeout",
+        type=float,
+        default=config.OSM_TIMEOUT_S,
+        help="timeout de cada requisição, em segundos",
+    )
+    build.add_argument(
+        "--osm-batch-size", type=int, default=config.OSM_BATCH_SIZE, help="hotspots por consulta"
+    )
+    build.add_argument(
+        "--osm-pause",
+        type=float,
+        default=config.OSM_PAUSE_S,
+        help="pausa mínima entre requisições, em segundos",
+    )
+    build.add_argument(
+        "--osm-padding",
+        type=int,
+        default=config.OSM_RADIUS_PADDING_M,
+        help="metros adicionados ao raio de cada hotspot na consulta",
+    )
 
     synth = subparsers.add_parser("synthetic", help="gera apenas o CSV sintético")
     synth.add_argument("--out", default="data/raw/datatran_sintetico.csv")
