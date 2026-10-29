@@ -214,6 +214,8 @@ describe('fetchIncidents', () => {
     expect(url).toContain('api.tomtom.com/maps/orbis/traffic/incidents/details');
     expect(init.headers['TomTom-Api-Key']).toBe('test-key');
     expect(init.headers.Attributes).toContain('incidents(');
+    // pt-BR retorna 406; pt-PT é o português aceito pela API.
+    expect(init.headers['Accept-Language']).toBe('pt-PT');
   });
 
   it('mapeia 403 para erro de autenticação e 429 para cota', async () => {
@@ -222,6 +224,9 @@ describe('fetchIncidents', () => {
 
     (global.fetch as jest.Mock).mockResolvedValueOnce(response(429, {}));
     await expect(fetchIncidents(bounds)).rejects.toMatchObject({ kind: 'quota' });
+
+    (global.fetch as jest.Mock).mockResolvedValueOnce(response(406, {}));
+    await expect(fetchIncidents(bounds)).rejects.toMatchObject({ kind: 'server', status: 406 });
   });
 
   it('recusa bbox acima do limite sem chamar a rede', async () => {

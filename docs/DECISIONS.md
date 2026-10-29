@@ -139,6 +139,7 @@ Formato: **decisão**, **motivo** e **alternativas descartadas**.
 - **Atualização:** cache por bbox com TTL igual ao intervalo escolhido (5/10/15/20 min, padrão 15), polling apenas com `AppState === 'active'`, debounce de 1,2 s ao mover o mapa e consulta separada de 30 km ao redor do usuário para lista e alertas.
 - **Alertas:** mesmas regras de primeiro plano dos hotspots, com cooldown de 30 min por incidente e 30 s global; o estado é persistido e podado após 7 dias.
 - **Atribuição:** “Incidentes: © TomTom” no mapa, na lista, no card e nos banners.
+- **Idioma:** enviar `Accept-Language: pt-PT`. A API Orbis v2 recusa `pt-BR` com **HTTP 406** (“Service doesn't support language(s) listed in Accept-Language header”); `pt-PT` é aceito e mantém as descrições em português.
 - **Alternativas descartadas:** chamar a API a cada minuto (estouraria a cota em menos de dois dias); consultar o Nordeste inteiro numa bbox (acima do limite); proxy próprio nesta fase (mais seguro, mas exigiria hospedar um serviço — o cliente fica pronto para ser trocado depois).
 
 ### D26. Camada de incidentes no Leaflet e navegação para o mapa

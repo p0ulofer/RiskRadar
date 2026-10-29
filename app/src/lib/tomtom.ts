@@ -272,7 +272,9 @@ export async function fetchIncidents(
       headers: {
         'TomTom-Api-Key': key,
         Attributes: ATTRIBUTES,
-        'Accept-Language': 'pt-BR',
+        // A API Orbis v2 não aceita pt-BR (retorna 406). pt-PT é o português
+        // suportado e mantém as descrições em português.
+        'Accept-Language': 'pt-PT',
         Accept: 'application/json',
       },
       signal: controller.signal,
@@ -291,6 +293,13 @@ export async function fetchIncidents(
     }
     if (response.status === 400) {
       throw new TomTomError('invalid-bounds', 'Área inválida para a API do TomTom.', 400);
+    }
+    if (response.status === 406) {
+      throw new TomTomError(
+        'server',
+        'O TomTom recusou o idioma ou o formato da consulta (HTTP 406).',
+        406
+      );
     }
     if (!response.ok) {
       throw new TomTomError('server', `TomTom respondeu HTTP ${response.status}.`, response.status);
