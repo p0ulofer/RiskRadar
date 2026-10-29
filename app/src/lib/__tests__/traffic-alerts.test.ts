@@ -20,6 +20,7 @@ function incident(overrides: Partial<TrafficIncident> = {}): TrafficIncident {
     geometry: [[-8.05, -34.9]],
     roadNumbers: ['BR-101'],
     from: 'Recife',
+    descriptions: [],
     receivedAt: NOW,
     ...overrides,
   };

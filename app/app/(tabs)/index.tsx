@@ -22,7 +22,7 @@ import { useSettings } from '@/store/settings';
 import { useTraffic } from '@/store/traffic';
 import { levelOrder, radius, useTheme } from '@/theme';
 import type { GeoRegion, Hotspot } from '@/types/hotspots';
-import type { TrafficIncident } from '@/types/traffic';
+import type { TrafficCategory, TrafficIncident } from '@/types/traffic';
 
 const NORTHEAST_REGION: GeoRegion = {
   latitude: -8.6,
@@ -32,6 +32,12 @@ const NORTHEAST_REGION: GeoRegion = {
 };
 
 const MAX_MARKERS = 150;
+
+const TRAFFIC_LEGEND: { category: TrafficCategory; label: string }[] = [
+  { category: 'accident', label: 'Acidente' },
+  { category: 'roadClosed', label: 'Interdição' },
+  { category: 'brokenDownVehicle', label: 'Veículo parado' },
+];
 
 export default function MapScreen() {
   const router = useRouter();
@@ -282,6 +288,17 @@ export default function MapScreen() {
               </Text>
             </View>
           ))}
+          {trafficVisible && trafficConfigured ? (
+            <>
+              <View style={[styles.legendDivider, { backgroundColor: colors.border }]} />
+              {TRAFFIC_LEGEND.map(({ category, label }) => (
+                <View key={category} style={styles.legendRow}>
+                  <View style={[styles.legendDot, { backgroundColor: trafficColor(category) }]} />
+                  <Text style={[styles.legendText, { color: colors.textMuted }]}>{label}</Text>
+                </View>
+              ))}
+            </>
+          ) : null}
         </View>
 
         <View
@@ -395,9 +412,10 @@ export default function MapScreen() {
               <Text style={[styles.cardSubtitle, { color: colors.textMuted }]} numberOfLines={2}>
                 {[selectedIncident.from, selectedIncident.to].filter(Boolean).join(' → ')}
               </Text>
-            ) : selectedIncident.description ? (
-              <Text style={[styles.cardSubtitle, { color: colors.textMuted }]} numberOfLines={2}>
-                {selectedIncident.description}
+            ) : null}
+            {selectedIncident.descriptions.length > 0 ? (
+              <Text style={[styles.cardDescription, { color: colors.text }]} numberOfLines={3}>
+                {selectedIncident.descriptions.join(' · ')}
               </Text>
             ) : null}
             <Text style={[styles.cardStats, { color: colors.textMuted }]}>
@@ -410,7 +428,9 @@ export default function MapScreen() {
                   : null,
                 selectedIncident.lastReportTime
                   ? `reportado ${formatRelativeTime(selectedIncident.lastReportTime)}`
-                  : null,
+                  : selectedIncident.startTime
+                    ? `iniciado ${formatRelativeTime(selectedIncident.startTime)}`
+                    : null,
               ]
                 .filter(Boolean)
                 .join(' · ') || 'Sem detalhes adicionais.'}
@@ -566,6 +586,10 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '600',
   },
+  legendDivider: {
+    height: StyleSheet.hairlineWidth,
+    marginVertical: 2,
+  },
   trafficChip: {
     position: 'absolute',
     right: 12,
@@ -656,6 +680,11 @@ const styles = StyleSheet.create({
   },
   cardStats: {
     fontSize: 12,
+  },
+  cardDescription: {
+    fontSize: 13,
+    lineHeight: 18,
+    fontWeight: '600',
   },
   cardActions: {
     flexDirection: 'row',

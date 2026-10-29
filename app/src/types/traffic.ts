@@ -21,7 +21,8 @@ export interface TrafficIncident {
   roadNumbers: string[];
   from?: string;
   to?: string;
-  description?: string;
+  /** Descrições padronizadas dos eventos (ex.: "Encerrado/a", "Trânsito parado"). */
+  descriptions: string[];
   lengthM?: number;
   delayS?: number;
   startTime?: string;

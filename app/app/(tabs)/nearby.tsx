@@ -33,10 +33,9 @@ function IncidentRow({
   onPress: () => void;
 }) {
   const { colors, trafficColor } = useTheme();
-  const where =
-    [incident.from, incident.to].filter(Boolean).join(' → ') ||
-    incident.description ||
-    'Local não informado';
+  const where = [incident.from, incident.to].filter(Boolean).join(' → ');
+  const description = incident.descriptions.join(' · ');
+  const primary = description || where || 'Local não informado';
   return (
     <Pressable
       onPress={onPress}
@@ -56,8 +55,13 @@ function IncidentRow({
           {incident.roadNumbers[0] ? ` · ${roadLabel(incident.roadNumbers[0])}` : ''}
         </Text>
         <Text style={[styles.incidentSubtitle, { color: colors.textMuted }]} numberOfLines={1}>
-          {where}
+          {primary}
         </Text>
+        {description && where ? (
+          <Text style={[styles.incidentLocation, { color: colors.textMuted }]} numberOfLines={1}>
+            {where}
+          </Text>
+        ) : null}
       </View>
       <View style={styles.incidentRight}>
         <Text style={[styles.incidentDistance, { color: colors.primary }]}>
@@ -438,6 +442,9 @@ const styles = StyleSheet.create({
   },
   incidentSubtitle: {
     fontSize: 12,
+  },
+  incidentLocation: {
+    fontSize: 11,
   },
   incidentRight: {
     alignItems: 'flex-end',

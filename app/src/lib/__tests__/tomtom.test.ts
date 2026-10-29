@@ -51,7 +51,7 @@ describe('normalizeIncident', () => {
       roadNumbers: ['BR-101'],
       from: 'Recife',
       to: 'Olinda',
-      description: 'Acidente',
+      descriptions: ['Acidente'],
       lengthM: 320,
       delayS: 180,
       startTime: '2026-10-29T12:00:00Z',
@@ -123,6 +123,20 @@ describe('normalizeIncident', () => {
     expect(incident?.delayS).toBeUndefined();
     expect(incident?.reports).toBeUndefined();
     expect(incident?.roadNumbers).toEqual([]);
+  });
+
+  it('reúne as descrições dos eventos sem repetir', () => {
+    const incident = normalizeIncident(
+      rawPoint({
+        events: [
+          { description: 'Acidente', code: 1 },
+          { description: 'Faixa interditada', code: 2 },
+          { description: 'Acidente', code: 1 },
+        ],
+      }),
+      NOW
+    );
+    expect(incident?.descriptions).toEqual(['Acidente', 'Faixa interditada']);
   });
 });
 

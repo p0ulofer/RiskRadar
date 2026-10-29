@@ -168,12 +168,14 @@ export function normalizeIncident(raw: RawIncident, now = Date.now()): TrafficIn
   if (!center) return null;
 
   const events = Array.isArray(properties.events) ? properties.events : [];
-  const firstEvent = events.find(
-    (event): event is { description?: unknown } =>
-      typeof event === 'object' && event !== null
-  );
-  const description =
-    firstEvent && typeof firstEvent.description === 'string' ? firstEvent.description : undefined;
+  const descriptions: string[] = [];
+  for (const event of events) {
+    if (typeof event !== 'object' || event === null) continue;
+    const description = (event as { description?: unknown }).description;
+    if (typeof description !== 'string') continue;
+    const trimmed = description.trim();
+    if (trimmed && !descriptions.includes(trimmed)) descriptions.push(trimmed);
+  }
 
   const roadNumbers = Array.isArray(properties.roadNumbers)
     ? properties.roadNumbers
@@ -199,7 +201,7 @@ export function normalizeIncident(raw: RawIncident, now = Date.now()): TrafficIn
     roadNumbers,
     from: typeof properties.from === 'string' ? properties.from : undefined,
     to: typeof properties.to === 'string' ? properties.to : undefined,
-    description,
+    descriptions,
     lengthM: numeric(properties.lengthInMeters ?? properties.length),
     delayS: numeric(properties.delayInSeconds ?? properties.delay),
     startTime: typeof properties.startTime === 'string' ? properties.startTime : undefined,
@@ -394,7 +396,7 @@ export function shrinkBounds(bounds: TrafficBounds, maxAreaKm2 = TOMTOM_MAX_BBOX
 
 export function buildTrafficMessage(incident: TrafficIncident, distanceM: number): string {
   const road = incident.roadNumbers[0] ? roadLabel(incident.roadNumbers[0]) : null;
-  const where = incident.from || incident.to || incident.description;
+  const where = incident.from || incident.to || incident.descriptions[0];
   const distance = distanceM < 1000 ? `${Math.round(distanceM)} m` : `${(distanceM / 1000).toFixed(1)} km`;
   const parts = [categoryLabel(incident.category)];
   if (road) parts.push(`na ${road}`);

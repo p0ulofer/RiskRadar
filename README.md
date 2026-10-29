@@ -275,8 +275,9 @@ alertas.
   A seção **Acidentes agora** lista os incidentes do TomTom num raio de 30 km,
   com distância e horário do reporte; tocar num item abre o incidente no mapa.
 - **Acidentes em tempo real:** camada do TomTom no mapa (ponto ou linha da via),
-  chip de status com atualização manual, cache local e cota mensal. Requer
-  `EXPO_PUBLIC_TOMTOM_API_KEY`.
+  legenda de acidente/interdição/veículo parado, descrição padronizada do evento
+  no card, chip de status com atualização manual, cache local e cota mensal.
+  Requer `EXPO_PUBLIC_TOMTOM_API_KEY`.
 - **Alertas em primeiro plano:** switch em Configurações, raio de
   500/1000/2000 m, nível mínimo, banner, notificação local e voz pt-BR
   opcional. Cooldown de 10 min por hotspot e 1 alerta a cada 30 s. Acidentes e
