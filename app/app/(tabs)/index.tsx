@@ -64,6 +64,7 @@ export default function MapScreen() {
   }>();
 
   const [userRegion, setUserRegion] = useState<GeoRegion | null>(null);
+  const [initialUserRegion, setInitialUserRegion] = useState<GeoRegion | null>(null);
   const [region, setRegion] = useState<GeoRegion>(NORTHEAST_REGION);
   const [selectedState, setSelectedState] = useState<Hotspot | null>(null);
   const [selectedIncidentState, setSelectedIncidentState] = useState<TrafficIncident | null>(
@@ -73,6 +74,7 @@ export default function MapScreen() {
     undefined
   );
   const [filterOpen, setFilterOpen] = useState(false);
+  const [userFocusToken, setUserFocusToken] = useState(0);
 
   const focusToken = hotspotId ? `${hotspotId}:${focusAt ?? ''}` : null;
   const trafficVisible = settings.trafficEnabled;
@@ -128,9 +130,15 @@ export default function MapScreen() {
 
   useEffect(() => {
     let cancelled = false;
+    let subscription: Location.LocationSubscription | null = null;
     (async () => {
       try {
-        const permission = await Location.getForegroundPermissionsAsync();
+        let permission = await Location.getForegroundPermissionsAsync();
+        // Solicita a permissão se o usuário ainda não decidiu; respeita a
+        // negativa explícita (canAskAgain === false).
+        if (!permission.granted && permission.canAskAgain) {
+          permission = await Location.requestForegroundPermissionsAsync();
+        }
         if (!permission.granted || cancelled) return;
         const position = await Location.getCurrentPositionAsync({
           accuracy: Location.Accuracy.Balanced,
@@ -143,13 +151,33 @@ export default function MapScreen() {
           longitudeDelta: 0.15,
         };
         setUserRegion(next);
+        // Foco inicial da câmera: só é usado uma vez para não prender o mapa.
+        setInitialUserRegion(next);
         setRegion(next);
+        // Acompanha o deslocamento para manter o ícone atualizado em tempo real.
+        subscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.Balanced,
+            distanceInterval: 25,
+            timeInterval: 10_000,
+          },
+          (update) => {
+            if (cancelled) return;
+            setUserRegion({
+              latitude: update.coords.latitude,
+              longitude: update.coords.longitude,
+              latitudeDelta: 0.15,
+              longitudeDelta: 0.15,
+            });
+          }
+        );
       } catch {
         // Mantém o mapa centrado no Nordeste.
       }
     })();
     return () => {
       cancelled = true;
+      subscription?.remove();
     };
   }, []);
 
@@ -212,6 +240,34 @@ export default function MapScreen() {
     setDismissedIncidentToken(incidentToken);
   };
 
+  const recenterToUser = async () => {
+    if (userRegion) {
+      setUserFocusToken((value) => value + 1);
+      return;
+    }
+    try {
+      let permission = await Location.getForegroundPermissionsAsync();
+      if (!permission.granted && permission.canAskAgain) {
+        permission = await Location.requestForegroundPermissionsAsync();
+      }
+      if (!permission.granted) return;
+      const position = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const next: GeoRegion = {
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        latitudeDelta: 0.15,
+        longitudeDelta: 0.15,
+      };
+      setUserRegion(next);
+      setInitialUserRegion(next);
+      setUserFocusToken((value) => value + 1);
+    } catch {
+      // Sem posição disponível: mantém a câmera onde está.
+    }
+  };
+
   if (!ready) {
     return (
       <View style={[styles.loading, { backgroundColor: colors.background }]}>
@@ -228,7 +284,7 @@ export default function MapScreen() {
         <LeafletMap
           hotspots={mapHotspots}
           selected={selected}
-          focus={targetIncidentRegion ?? targetRegion ?? userRegion}
+          focus={targetIncidentRegion ?? targetRegion ?? initialUserRegion}
           focusKey={mapFocusKey}
           colorForLevel={levelColor}
           backgroundColor={colors.background}
@@ -241,6 +297,8 @@ export default function MapScreen() {
           selectedIncident={selectedIncident}
           colorForTraffic={trafficColor}
           onSelectIncident={selectIncident}
+          userPosition={userRegion}
+          userFocusToken={userFocusToken}
         />
 
         <View
@@ -372,6 +430,24 @@ export default function MapScreen() {
             </Pressable>
           ) : null}
         </View>
+
+        <Pressable
+          onPress={() => {
+            void recenterToUser();
+          }}
+          style={[
+            styles.locateButton,
+            {
+              top: insets.top + 128,
+              backgroundColor: colors.mapOverlay,
+              borderColor: colors.border,
+            },
+          ]}
+          accessibilityRole="button"
+          accessibilityLabel="Centralizar na minha localização"
+        >
+          <Text style={[styles.locateIcon, { color: colors.primary }]}>◎</Text>
+        </Pressable>
 
         {visible.length === 0 ? (
           <View
@@ -627,6 +703,25 @@ const styles = StyleSheet.create({
   },
   trafficRefreshText: {
     fontSize: 14,
+    fontWeight: '800',
+  },
+  locateButton: {
+    position: 'absolute',
+    right: 12,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.16,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 3 },
+    elevation: 6,
+  },
+  locateIcon: {
+    fontSize: 22,
     fontWeight: '800',
   },
   categoryDot: {

@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-nati
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 
 import { LEAFLET_CSS, LEAFLET_JS } from '@/lib/leaflet-assets';
-import type { GeoRegion, Hotspot, Level } from '@/types/hotspots';
+import type { GeoPoint, GeoRegion, Hotspot, Level } from '@/types/hotspots';
 import type { TrafficCategory, TrafficIncident } from '@/types/traffic';
 
 const INITIAL_BOUNDS = '[[-18.5, -48.5], [-1.0, -32.0]]';
@@ -21,6 +21,10 @@ interface LeafletMapProps {
   selectedIncident?: TrafficIncident | null;
   colorForTraffic?: (category: TrafficCategory) => string;
   onSelectIncident?: (incident: TrafficIncident) => void;
+  /** Posição atual do usuário, exibida como ícone azul no mapa. */
+  userPosition?: GeoPoint | null;
+  /** Incrementa para centralizar o mapa na posição do usuário. */
+  userFocusToken?: number;
 }
 
 function zoomForDelta(delta: number): number {
@@ -102,6 +106,28 @@ function buildHtml(backgroundColor: string): string {
       marker.on('click', onClick);
       markers.push(hit, marker);
     });
+    if (typeof data.userLat === 'number' && typeof data.userLng === 'number') {
+      var userLatlng = [data.userLat, data.userLng];
+      var userHalo = L.circleMarker(userLatlng, {
+        radius: 18,
+        stroke: false,
+        fill: true,
+        fillColor: '#1A73E8',
+        fillOpacity: 0.18,
+        interactive: false
+      }).addTo(map);
+      var userMarker = L.circleMarker(userLatlng, {
+        radius: 7,
+        stroke: true,
+        weight: 3,
+        color: '#FFFFFF',
+        fill: true,
+        fillColor: '#1A73E8',
+        fillOpacity: 1,
+        interactive: false
+      }).addTo(map);
+      markers.push(userHalo, userMarker);
+    }
     if (circle) { map.removeLayer(circle); circle = null; }
     if (data.selected) {
       circle = L.circle([data.selected.lat, data.selected.lng], {
@@ -182,6 +208,8 @@ export function LeafletMap({
   selectedIncident = null,
   colorForTraffic,
   onSelectIncident,
+  userPosition = null,
+  userFocusToken,
 }: LeafletMapProps) {
   const webRef = useRef<WebView | null>(null);
   const lastFocusRef = useRef<string | null>(null);
@@ -216,8 +244,10 @@ export function LeafletMap({
               color: colorForLevel(selected.level),
             }
           : null,
+        userLat: userPosition?.latitude ?? null,
+        userLng: userPosition?.longitude ?? null,
       }),
-    [hotspots, selected, colorForLevel]
+    [hotspots, selected, colorForLevel, userPosition]
   );
 
   useEffect(() => {
@@ -255,6 +285,19 @@ export function LeafletMap({
       `window.riskradarFocus(${focus.latitude}, ${focus.longitude}, ${zoom}); true;`
     );
   }, [loaded, focus, focusKey]);
+
+  // Centraliza o mapa na posição do usuário quando o botão é acionado.
+  const lastUserFocusRef = useRef<number>(0);
+  useEffect(() => {
+    if (!loaded) return;
+    if (!userFocusToken || userFocusToken <= 0) return;
+    if (lastUserFocusRef.current === userFocusToken) return;
+    if (!userPosition) return;
+    lastUserFocusRef.current = userFocusToken;
+    webRef.current?.injectJavaScript(
+      `window.riskradarFocus(${userPosition.latitude}, ${userPosition.longitude}, 14); true;`
+    );
+  }, [loaded, userFocusToken, userPosition]);
 
   const handleMessage = (event: WebViewMessageEvent) => {
     let message: unknown;
