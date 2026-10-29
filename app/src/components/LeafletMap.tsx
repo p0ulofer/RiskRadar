@@ -59,22 +59,49 @@ function buildHtml(backgroundColor: string): string {
   var markers = [];
   var circle = null;
   var incidentLayer = L.layerGroup().addTo(map);
+  var HIT_RADIUS_PX = 18;
+  var HIT_LINE_WEIGHT_PX = 24;
   function post(payload) {
     if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(payload));
+  }
+  // Camada invisível maior que o marcador: melhora o toque sem mudar o visual.
+  function hitCircle(latlng, onClick) {
+    var hit = L.circleMarker(latlng, {
+      radius: HIT_RADIUS_PX,
+      stroke: false,
+      fill: true,
+      fillColor: '#000000',
+      fillOpacity: 0,
+      opacity: 0
+    });
+    hit.on('click', onClick);
+    return hit;
+  }
+  function hitLine(line, onClick) {
+    var hit = L.polyline(line, {
+      color: '#000000',
+      weight: HIT_LINE_WEIGHT_PX,
+      opacity: 0
+    });
+    hit.on('click', onClick);
+    return hit;
   }
   window.riskradarUpdate = function (data) {
     markers.forEach(function (marker) { map.removeLayer(marker); });
     markers = [];
     (data.hotspots || []).forEach(function (hotspot) {
-      var marker = L.circleMarker([hotspot.lat, hotspot.lng], {
+      var latlng = [hotspot.lat, hotspot.lng];
+      var onClick = function () { post({ type: 'select', id: hotspot.id }); };
+      var hit = hitCircle(latlng, onClick).addTo(map);
+      var marker = L.circleMarker(latlng, {
         radius: hotspot.id === data.selectedId ? 9 : 6,
         color: '#ffffff',
         weight: 1.5,
         fillColor: hotspot.color,
         fillOpacity: 1
       }).addTo(map);
-      marker.on('click', function () { post({ type: 'select', id: hotspot.id }); });
-      markers.push(marker);
+      marker.on('click', onClick);
+      markers.push(hit, marker);
     });
     if (circle) { map.removeLayer(circle); circle = null; }
     if (data.selected) {
@@ -83,7 +110,8 @@ function buildHtml(backgroundColor: string): string {
         color: data.selected.color,
         weight: 2,
         fillColor: data.selected.color,
-        fillOpacity: 0.15
+        fillOpacity: 0.15,
+        interactive: false
       }).addTo(map);
     }
   };
@@ -91,24 +119,26 @@ function buildHtml(backgroundColor: string): string {
     incidentLayer.clearLayers();
     (data.incidents || []).forEach(function (incident) {
       var selected = incident.id === data.selectedId;
+      var onClick = function () { post({ type: 'selectIncident', id: incident.id }); };
       var shape;
       if (incident.line && incident.line.length > 1) {
+        hitLine(incident.line, onClick).addTo(incidentLayer);
         shape = L.polyline(incident.line, {
           color: incident.color,
           weight: selected ? 6 : 4,
           opacity: selected ? 1 : 0.85
-        });
+        }).addTo(incidentLayer);
       } else {
+        hitCircle([incident.lat, incident.lng], onClick).addTo(incidentLayer);
         shape = L.circleMarker([incident.lat, incident.lng], {
           radius: selected ? 10 : 7,
           color: '#ffffff',
           weight: 2,
           fillColor: incident.color,
           fillOpacity: 1
-        });
+        }).addTo(incidentLayer);
       }
-      shape.on('click', function () { post({ type: 'selectIncident', id: incident.id }); });
-      shape.addTo(incidentLayer);
+      shape.on('click', onClick);
     });
   };
   window.riskradarFocus = function (lat, lng, zoom) {
