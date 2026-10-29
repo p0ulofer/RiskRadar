@@ -138,7 +138,7 @@ Formato: **decisão**, **motivo** e **alternativas descartadas**.
 - **Cota e bbox:** o plano free de Incident Details tem **2.500 requisições/mês** e a bbox máxima é de **10.000 km²**. O app conta as chamadas no aparelho (chave `AAAA-MM`), bloqueia ao atingir o limite, mantém o último cache e pede para aproximar o mapa quando a área visível não cabe.
 - **Atualização:** cache por bbox com TTL igual ao intervalo escolhido (5/10/15/20 min, padrão 15), polling apenas com `AppState === 'active'`, debounce de 1,2 s ao mover o mapa e consulta separada de 30 km ao redor do usuário para lista e alertas.
 - **Alertas:** mesmas regras de primeiro plano dos hotspots, com cooldown de 30 min por incidente e 30 s global; o estado é persistido e podado após 7 dias.
-- **Atribuição:** “Incidentes: © TomTom” no mapa, na lista, no card e nos banners.
+- **Atribuição:** “Incidentes: © TomTom” na lista, no card e nos banners; o crédito do mapa (Leaflet/OpenStreetMap e TomTom) fica na tela "Sobre", sem o controle de atribuição sobre o mapa.
 - **Idioma:** enviar `Accept-Language: pt-PT`. A API Orbis v2 recusa `pt-BR` com **HTTP 406** (“Service doesn't support language(s) listed in Accept-Language header”); `pt-PT` é aceito e mantém as descrições em português.
 - **Alternativas descartadas:** chamar a API a cada minuto (estouraria a cota em menos de dois dias); consultar o Nordeste inteiro numa bbox (acima do limite); proxy próprio nesta fase (mais seguro, mas exigiria hospedar um serviço — o cliente fica pronto para ser trocado depois).
 

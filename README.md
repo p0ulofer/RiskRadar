@@ -256,8 +256,9 @@ painel do TomTom.
 > podem ser extraídas do aplicativo. Restrinja a chave no painel do TomTom e,
 > antes de publicar, considere mover as chamadas para um proxy próprio.
 
-Atribuição exigida: **Incidentes: © TomTom**, exibida no mapa, na lista e nos
-alertas.
+Atribuição exigida: **Incidentes: © TomTom**, exibida na lista, no card de
+detalhe e nos alertas; a tela "Sobre" concentra as atribuições do mapa
+(OpenStreetMap/ODbL) e do TomTom.
 
 ### Funcionalidades
 

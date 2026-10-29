@@ -40,7 +40,6 @@ function buildHtml(backgroundColor: string): string {
 <style>
   html, body, #map { height: 100%; width: 100%; margin: 0; padding: 0; background: ${backgroundColor}; }
   .leaflet-container { background: ${backgroundColor}; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-  .leaflet-control-attribution { font-size: 9px; }
 </style>
 </head>
 <body>
@@ -49,13 +48,13 @@ function buildHtml(backgroundColor: string): string {
 <script>
 (function () {
   var initialBounds = L.latLngBounds(${INITIAL_BOUNDS});
-  var map = L.map('map', { zoomControl: false, attributionControl: true, preferCanvas: true, minZoom: 4 });
+  // Atribuições (OpenStreetMap/ODbL e TomTom) ficam na tela "Sobre" do app.
+  var map = L.map('map', { zoomControl: false, attributionControl: false, preferCanvas: true, minZoom: 4 });
   map.fitBounds(initialBounds, { padding: [8, 8] });
   L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
   }).addTo(map);
-  map.attributionControl.addAttribution('Incidentes: &copy; TomTom');
   var markers = [];
   var circle = null;
   var incidentLayer = L.layerGroup().addTo(map);
