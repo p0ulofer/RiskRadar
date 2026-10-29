@@ -14,7 +14,7 @@ import {
 import { HotspotListItem } from '@/components/HotspotListItem';
 import { formatDistance, formatRelativeTime } from '@/lib/format';
 import { haversineMeters } from '@/lib/geo';
-import { categoryLabel, roadLabel } from '@/lib/tomtom';
+import { categoryLabel, pointInBounds, roadLabel, TOMTOM_COVERAGE_BOUNDS } from '@/lib/tomtom';
 import { useData } from '@/store/data';
 import { useTraffic } from '@/store/traffic';
 import { radius, useTheme } from '@/theme';
@@ -87,6 +87,7 @@ export default function NearbyScreen() {
     enabled: trafficEnabled,
     error: trafficError,
     loading: trafficLoading,
+    outsideCoverage: trafficOutsideCoverage,
     refreshNearby,
     updatedAt: trafficUpdatedAt,
   } = useTraffic();
@@ -271,6 +272,11 @@ export default function NearbyScreen() {
                 </Text>
               ) : trafficError ? (
                 <Text style={[styles.warning, { color: colors.warning }]}>{trafficError}</Text>
+              ) : trafficOutsideCoverage ? (
+                <Text style={[styles.body, { color: colors.textMuted }]}>
+                  As consultas do TomTom estão limitadas ao Nordeste para economizar a cota do
+                  plano gratuito. Volte para a região para ver os acidentes em tempo real.
+                </Text>
               ) : trafficLoading && trafficItems.length === 0 ? (
                 <ActivityIndicator style={styles.trafficLoader} color={colors.primary} />
               ) : trafficItems.length === 0 ? (

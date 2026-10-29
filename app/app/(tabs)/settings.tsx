@@ -75,6 +75,7 @@ export default function SettingsScreen() {
     error: trafficError,
     quota,
     loading: trafficLoading,
+    outsideCoverage: trafficOutsideCoverage,
     updatedAt: trafficUpdatedAt,
   } = useTraffic();
 
@@ -227,10 +228,18 @@ export default function SettingsScreen() {
           format={(value) => `${value} min`}
         />
         <Text style={[styles.hint, { color: colors.textMuted }]}>
-          O plano gratuito do TomTom permite 2.500 consultas por mês. O app conta as consultas e
-          para quando o limite é atingido; os últimos dados continuam disponíveis. Intervalos
-          menores gastam a cota mais rápido.
+          O plano gratuito do TomTom permite 2.500 consultas por mês. Para preservar a cota, o app
+          só consulta acidentes dentro do Nordeste; ao navegar para fora da região, nenhuma
+          requisição é feita. O app conta as consultas e para quando o limite é atingido; os
+          últimos dados continuam disponíveis. Intervalos menores gastam a cota mais rápido.
         </Text>
+
+        <View style={styles.infoRow}>
+          <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Cobertura</Text>
+          <Text style={[styles.infoValue, { color: trafficOutsideCoverage ? colors.warning : colors.text }]}>
+            {trafficOutsideCoverage ? 'fora do Nordeste' : 'Nordeste'}
+          </Text>
+        </View>
 
         <View style={styles.infoRow}>
           <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Chave do TomTom</Text>

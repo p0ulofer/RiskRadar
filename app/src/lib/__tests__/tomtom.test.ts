@@ -3,12 +3,15 @@ import {
   boundsContain,
   boundsFromPoint,
   boundsFromRegion,
+  boundsIntersect,
   buildIncidentsUrl,
   buildTrafficMessage,
+  clipBounds,
   fetchIncidents,
   normalizeIncident,
   shrinkBounds,
   TomTomError,
+  TOMTOM_COVERAGE_BOUNDS,
   TOMTOM_FREE_MONTHLY_LIMIT,
 } from '@/lib/tomtom';
 import type { TrafficIncident } from '@/types/traffic';
@@ -172,6 +175,26 @@ describe('bbox', () => {
     expect(boundsAreaKm2(bounds)).toBeLessThan(200);
     expect(boundsContain(bounds, { ...bounds })).toBe(true);
   });
+
+  it('recorta a consulta no Nordeste e ignora áreas fora da cobertura', () => {
+    const recife = boundsFromPoint({ latitude: -8, longitude: -35 }, 30_000);
+    expect(boundsIntersect(recife, TOMTOM_COVERAGE_BOUNDS)).toBe(true);
+    expect(clipBounds(recife)).toEqual(recife);
+
+    const crossingEast = { minLat: -8.2, maxLat: -7.8, minLon: -35.2, maxLon: -34.2 };
+    expect(clipBounds(crossingEast)).toEqual({
+      minLat: -8.2,
+      maxLat: -7.8,
+      minLon: -35.2,
+      maxLon: TOMTOM_COVERAGE_BOUNDS.maxLon,
+    });
+  });
+
+  it('devolve null quando a bbox está totalmente fora do Nordeste', () => {
+    const saoPaulo = boundsFromPoint({ latitude: -23.55, longitude: -46.63 }, 30_000);
+    expect(boundsIntersect(saoPaulo, TOMTOM_COVERAGE_BOUNDS)).toBe(false);
+    expect(clipBounds(saoPaulo)).toBeNull();
+  });
 });
 
 describe('buildIncidentsUrl', () => {
@@ -251,6 +274,12 @@ describe('fetchIncidents', () => {
       longitudeDelta: 16,
     });
     await expect(fetchIncidents(huge)).rejects.toBeInstanceOf(TomTomError);
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('recusa bbox fora do Nordeste sem chamar a rede', async () => {
+    const saoPaulo = boundsFromPoint({ latitude: -23.55, longitude: -46.63 }, 30_000);
+    await expect(fetchIncidents(saoPaulo)).rejects.toMatchObject({ kind: 'outside-coverage' });
     expect(global.fetch).not.toHaveBeenCalled();
   });
 

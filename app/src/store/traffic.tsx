@@ -16,9 +16,11 @@ import {
   boundsContain,
   boundsFromPoint,
   boundsFromRegion,
+  clipBounds,
   fetchIncidents,
   isTomTomConfigured,
   TomTomError,
+  TOMTOM_COVERAGE_BOUNDS,
   TOMTOM_FREE_MONTHLY_LIMIT,
   TOMTOM_MAX_BBOX_KM2,
 } from '@/lib/tomtom';
@@ -48,6 +50,7 @@ interface TrafficContextValue {
   updatedAt: number | null;
   quota: { used: number; limit: number; remaining: number; month: string };
   regionTooLarge: boolean;
+  outsideCoverage: boolean;
   setRegion: (region: GeoRegion) => void;
   refresh: (options?: { force?: boolean }) => Promise<void>;
   refreshNearby: (point: GeoPoint, radiusM?: number) => Promise<void>;
@@ -85,6 +88,7 @@ export function TrafficProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<number | null>(null);
   const [regionTooLarge, setRegionTooLarge] = useState(false);
+  const [outsideCoverage, setOutsideCoverage] = useState(false);
   const [quota, setQuota] = useState<QuotaState>({ month: '', used: 0 });
 
   const cacheRef = useRef<TrafficCache | null>(null);
@@ -146,7 +150,19 @@ export function TrafficProvider({ children }: { children: ReactNode }) {
     async (options?: { force?: boolean }) => {
       const region = regionRef.current;
       if (!region || !configured || !enabled) return;
-      const bounds = boundsFromRegion(region);
+      const visible = boundsFromRegion(region);
+      const bounds = clipBounds(visible, TOMTOM_COVERAGE_BOUNDS);
+      if (!bounds) {
+        // Fora do Nordeste: não gasta cota e limpa a camada para não exibir
+        // incidentes de outra região.
+        setOutsideCoverage(true);
+        setRegionTooLarge(false);
+        setIncidents([]);
+        setLoading(false);
+        setError(null);
+        return;
+      }
+      setOutsideCoverage(false);
       if (boundsAreaKm2(bounds) > TOMTOM_MAX_BBOX_KM2) {
         setRegionTooLarge(true);
         return;
@@ -198,7 +214,14 @@ export function TrafficProvider({ children }: { children: ReactNode }) {
       if (now - lastNearbyAt.current < ttlMs) return;
       if (nearbyInFlight.current) return;
 
-      const bounds = boundsFromPoint(point, radiusM);
+      const requested = boundsFromPoint(point, radiusM);
+      const bounds = clipBounds(requested, TOMTOM_COVERAGE_BOUNDS);
+      if (!bounds) {
+        // Posição fora do Nordeste: economiza a cota e não consulta.
+        lastNearbyAt.current = now;
+        setNearbyIncidents([]);
+        return;
+      }
       const cache = cacheRef.current;
       if (cache && isCacheUsable(cache, bounds, ttlMs, now)) {
         lastNearbyAt.current = now;
@@ -238,7 +261,9 @@ export function TrafficProvider({ children }: { children: ReactNode }) {
     (region: GeoRegion) => {
       regionRef.current = region;
       const bounds = boundsFromRegion(region);
-      setRegionTooLarge(boundsAreaKm2(bounds) > TOMTOM_MAX_BBOX_KM2);
+      const clipped = clipBounds(bounds, TOMTOM_COVERAGE_BOUNDS);
+      setOutsideCoverage(!clipped);
+      setRegionTooLarge(Boolean(clipped) && boundsAreaKm2(clipped!) > TOMTOM_MAX_BBOX_KM2);
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         void refresh();
@@ -303,6 +328,7 @@ export function TrafficProvider({ children }: { children: ReactNode }) {
         month: quota.month,
       },
       regionTooLarge,
+      outsideCoverage,
       setRegion,
       refresh,
       refreshNearby,
@@ -316,6 +342,7 @@ export function TrafficProvider({ children }: { children: ReactNode }) {
       incidents,
       loading,
       nearbyIncidents,
+      outsideCoverage,
       quota,
       refresh,
       refreshNearby,

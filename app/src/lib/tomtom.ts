@@ -17,6 +17,18 @@ import type {
 export const TOMTOM_DETAILS_URL = 'https://api.tomtom.com/maps/orbis/traffic/incidents/details';
 export const TOMTOM_FREE_MONTHLY_LIMIT = 2_500;
 export const TOMTOM_MAX_BBOX_KM2 = 10_000;
+/**
+ * Cobertura do plano gratuito neste app: apenas o Nordeste (MA, PI, CE, RN,
+ * PB, PE, AL, SE e BA). Consultas fora daqui não são feitas para preservar a
+ * cota de 2.500 requisições/mês.
+ */
+export const TOMTOM_COVERAGE_BOUNDS: TrafficBounds = {
+  minLat: -18.5,
+  maxLat: -1.0,
+  minLon: -48.9,
+  maxLon: -34.7,
+};
+export const TOMTOM_COVERAGE_LABEL = 'Nordeste';
 export const TOMTOM_DEFAULT_CATEGORIES: TrafficCategory[] = [
   'accident',
   'roadClosed',
@@ -28,6 +40,7 @@ export type TomTomErrorKind =
   | 'auth'
   | 'quota'
   | 'invalid-bounds'
+  | 'outside-coverage'
   | 'network'
   | 'server';
 
@@ -261,6 +274,12 @@ export async function fetchIncidents(
       'Área muito grande para a API do TomTom (máximo de 10.000 km²).'
     );
   }
+  if (!boundsIntersect(bounds, TOMTOM_COVERAGE_BOUNDS)) {
+    throw new TomTomError(
+      'outside-coverage',
+      `As consultas do TomTom estão limitadas ao ${TOMTOM_COVERAGE_LABEL} para economizar a cota do plano gratuito.`
+    );
+  }
 
   const controller = new AbortController();
   const timeoutMs = options.timeoutMs ?? 12_000;
@@ -375,6 +394,41 @@ export function boundsContain(outer: TrafficBounds, inner: TrafficBounds): boole
     inner.minLon >= outer.minLon &&
     inner.maxLon <= outer.maxLon
   );
+}
+
+export function boundsIntersect(a: TrafficBounds, b: TrafficBounds): boolean {
+  return (
+    a.minLat <= b.maxLat &&
+    a.maxLat >= b.minLat &&
+    a.minLon <= b.maxLon &&
+    a.maxLon >= b.minLon
+  );
+}
+
+export function pointInBounds(bounds: TrafficBounds, point: GeoPoint): boolean {
+  return (
+    point.latitude >= bounds.minLat &&
+    point.latitude <= bounds.maxLat &&
+    point.longitude >= bounds.minLon &&
+    point.longitude <= bounds.maxLon
+  );
+}
+
+/**
+ * Recorta a bbox na área de cobertura (Nordeste). Retorna `null` quando não há
+ * interseção — nesse caso nenhuma requisição deve ser feita.
+ */
+export function clipBounds(
+  bounds: TrafficBounds,
+  limit: TrafficBounds = TOMTOM_COVERAGE_BOUNDS
+): TrafficBounds | null {
+  if (!boundsIntersect(bounds, limit)) return null;
+  return normalizeBounds({
+    minLat: Math.max(bounds.minLat, limit.minLat),
+    maxLat: Math.min(bounds.maxLat, limit.maxLat),
+    minLon: Math.max(bounds.minLon, limit.minLon),
+    maxLon: Math.min(bounds.maxLon, limit.maxLon),
+  });
 }
 
 /** Encolhe a bbox ao redor do centro até caber no limite da API. */

@@ -236,7 +236,8 @@ continua funcionando normalmente com os dados históricos.
 O que a integração faz:
 
 - consulta acidentes, interdições e veículos quebrados na **área visível do
-  mapa** e num **raio de 30 km** ao redor do usuário;
+  mapa** e num **raio de 30 km** ao redor do usuário, **somente dentro do
+  Nordeste** (a consulta é recortada nessa região);
 - atualiza a cada **5, 10, 15 (padrão) ou 20 minutos**, somente com o app
   aberto, e reaproveita o cache enquanto ele estiver válido;
 - mostra a lista **Acidentes agora** em “Perto de mim”, com distância e horário
@@ -246,11 +247,14 @@ O que a integração faz:
   alertas.
 
 O plano gratuito do TomTom oferece **2.500 consultas por mês** para Incident
-Details, e cada chamada aceita no máximo **10.000 km²**. O app conta as
-consultas no aparelho, bloqueia novas chamadas ao atingir o limite e orienta a
-aproximar o mapa quando a área visível é grande demais. Como o contador é por
-instalação, reinstalar o app zera a contagem local — o controle oficial é o do
-painel do TomTom.
+Details, e cada chamada aceita no máximo **10.000 km²**. Para preservar a cota,
+o app **só consulta dentro do Nordeste** (MA, PI, CE, RN, PB, PE, AL, SE e BA):
+ao navegar para fora da região, nenhuma requisição é feita e o mapa mostra
+“Acidentes só no Nordeste”. A bbox visível é recortada no limite da região. O
+app conta as consultas no aparelho, bloqueia novas chamadas ao atingir o limite
+e orienta a aproximar o mapa quando a área visível é grande demais. Como o
+contador é por instalação, reinstalar o app zera a contagem local — o controle
+oficial é o do painel do TomTom.
 
 > **Segurança da chave:** variáveis `EXPO_PUBLIC_*` ficam embutidas no bundle e
 > podem ser extraídas do aplicativo. Restrinja a chave no painel do TomTom e,

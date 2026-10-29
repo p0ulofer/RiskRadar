@@ -52,6 +52,7 @@ export default function MapScreen() {
     error: trafficError,
     loading: trafficLoading,
     regionTooLarge,
+    outsideCoverage: trafficOutsideCoverage,
     refresh: refreshTraffic,
     setRegion: setTrafficRegion,
     updatedAt: trafficUpdatedAt,
@@ -332,7 +333,7 @@ export default function MapScreen() {
                 styles.trafficDot,
                 {
                   backgroundColor:
-                    trafficVisible && trafficConfigured && !trafficError
+                    trafficVisible && trafficConfigured && !trafficError && !trafficOutsideCoverage
                       ? colors.danger
                       : colors.border,
                 },
@@ -347,7 +348,9 @@ export default function MapScreen() {
                     ? 'Buscando acidentes…'
                     : regionTooLarge
                       ? 'Aproxime para ver acidentes'
-                      : trafficError
+                      : trafficOutsideCoverage
+                        ? 'Acidentes só no Nordeste'
+                        : trafficError
                         ? incidents.length > 0
                           ? `${incidents.length} acidentes · desatualizados`
                           : 'Acidentes indisponíveis'

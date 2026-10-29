@@ -135,7 +135,7 @@ Formato: **decisão**, **motivo** e **alternativas descartadas**.
 - **Decisão:** usar o endpoint `GET https://api.tomtom.com/maps/orbis/traffic/incidents/details` (`apiVersion=2`), com a chave no header `TomTom-Api-Key` e o parâmetro `Attributes` enxuto. A chave vem de `EXPO_PUBLIC_TOMTOM_API_KEY` no `app/.env`, por ser o caminho que funciona no Expo Go sem servidor.
 - **Motivo:** é o dado de trânsito com latência de minutos que faltava ao histórico da PRF; o endpoint devolve `id`, geometria (ponto ou linha), `roadNumbers`, `from/to`, `lengthInMeters`, `lastReportTime` e atraso, o suficiente para mapa, lista e alertas.
 - **Categorias:** buscar `accident`, `roadClosed` e `brokenDownVehicle`; alertar somente `accident` e `roadClosed` para não interromper o usuário por congestionamento ou obra.
-- **Cota e bbox:** o plano free de Incident Details tem **2.500 requisições/mês** e a bbox máxima é de **10.000 km²**. O app conta as chamadas no aparelho (chave `AAAA-MM`), bloqueia ao atingir o limite, mantém o último cache e pede para aproximar o mapa quando a área visível não cabe.
+- **Cota e bbox:** o plano free de Incident Details tem **2.500 requisições/mês** e a bbox máxima é de **10.000 km²**. O app conta as chamadas no aparelho (chave `AAAA-MM`), bloqueia ao atingir o limite, mantém o último cache e pede para aproximar o mapa quando a área visível não cabe. As consultas são limitadas ao **Nordeste** (ver D27).
 - **Atualização:** cache por bbox com TTL igual ao intervalo escolhido (5/10/15/20 min, padrão 15), polling apenas com `AppState === 'active'`, debounce de 1,2 s ao mover o mapa e consulta separada de 30 km ao redor do usuário para lista e alertas.
 - **Alertas:** mesmas regras de primeiro plano dos hotspots, com cooldown de 30 min por incidente e 30 s global; o estado é persistido e podado após 7 dias.
 - **Atribuição:** “Incidentes: © TomTom” na lista, no card e nos banners; o crédito do mapa (Leaflet/OpenStreetMap e TomTom) fica na tela "Sobre", sem o controle de atribuição sobre o mapa.
@@ -147,3 +147,9 @@ Formato: **decisão**, **motivo** e **alternativas descartadas**.
 - **Motivo:** separar as camadas permite ligar/desligar os acidentes sem reconstruir o mapa e mantém os hotspots históricos como âncora visual; o id do incidente no parâmetro permite abrir o item exato vindo da lista.
 - **Limitação:** os dados do TomTom mudam de id com o tempo; se o incidente sair da resposta antes do toque, o card não abre e a lista é atualizada na próxima consulta.
 - **Alternativa descartada:** misturar incidentes e hotspots num único array (perderia cor, seleção e atribuição independentes).
+
+### D27. Consultas do TomTom restritas ao Nordeste
+- **Decisão:** manter uma bbox de cobertura `TOMTOM_COVERAGE_BOUNDS` (`lat -18,5..-1,0`, `lon -48,9..-34,7`) e recortar toda consulta nela, tanto a área visível do mapa quanto o raio de 30 km ao redor do usuário. Quando a área visível ou a posição está totalmente fora da região, o app **não faz requisição**: limpa a camada e mostra “Acidentes só no Nordeste”. O cliente também recusa bbox sem interseção como segunda barreira.
+- **Motivo:** com o plano gratuito de 2.500 consultas/mês, um usuário que visita São Paulo ou outra região gastaria cota com dados que não são o foco do app. Recortar em vez de apenas bloquear permite continuar vendo o pedaço do Nordeste quando a tela cruza o limite.
+- **Consequência:** a área clicável/consultada pode ser menor que a tela perto das bordas e o cache é gravado com a bbox recortada; não há consulta incremental fora da região.
+- **Alternativa descartada:** bloquear só pelo centro do mapa (perderia a parte visível do Nordeste quando a tela está na divisa) e restringir por estado (exigiria polígonos e ficaria mais difícil de explicar).
