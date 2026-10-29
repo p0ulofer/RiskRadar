@@ -33,6 +33,8 @@ export const TOMTOM_DEFAULT_CATEGORIES: TrafficCategory[] = [
   'accident',
   'roadClosed',
   'brokenDownVehicle',
+  'jam',
+  'roadWorks',
 ];
 
 export type TomTomErrorKind =

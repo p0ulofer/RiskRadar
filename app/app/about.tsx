@@ -122,8 +122,9 @@ export default function AboutScreen() {
         <Text style={[styles.title, { color: colors.text }]}>Trânsito em tempo real</Text>
         <Text style={[styles.body, { color: colors.textMuted }]}>
           Além do histórico da PRF, o app consulta os incidentes de trânsito do TomTom para a área
-          visível no mapa e para um raio de 30 km ao redor de você. Entram acidentes, interdições e
-          veículos quebrados; os alertas em primeiro plano cobrem acidentes e interdições.
+          visível no mapa e para um raio de 30 km ao redor de você. Entram acidentes, interdições,
+          veículos quebrados, congestionamentos (trânsito parado) e obras; os alertas em primeiro
+          plano cobrem acidentes e interdições.
         </Text>
         <Text style={[styles.body, { color: colors.textMuted }]}>
           Os dados são atualizados enquanto o app está aberto, no intervalo escolhido em

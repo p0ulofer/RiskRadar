@@ -37,6 +37,8 @@ const TRAFFIC_LEGEND: { category: TrafficCategory; label: string }[] = [
   { category: 'accident', label: 'Acidente' },
   { category: 'roadClosed', label: 'Interdição' },
   { category: 'brokenDownVehicle', label: 'Veículo parado' },
+  { category: 'jam', label: 'Congestionamento' },
+  { category: 'roadWorks', label: 'Obras' },
 ];
 
 export default function MapScreen() {

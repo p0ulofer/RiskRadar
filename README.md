@@ -235,7 +235,8 @@ continua funcionando normalmente com os dados históricos.
 
 O que a integração faz:
 
-- consulta acidentes, interdições e veículos quebrados na **área visível do
+- consulta acidentes, interdições, veículos quebrados, congestionamentos
+  (trânsito parado) e obras na **área visível do
   mapa** e num **raio de 30 km** ao redor do usuário, **somente dentro do
   Nordeste** (a consulta é recortada nessa região);
 - atualiza a cada **5, 10, 15 (padrão) ou 20 minutos**, somente com o app
