@@ -4,6 +4,7 @@ import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 
 import { LEAFLET_CSS, LEAFLET_JS } from '@/lib/leaflet-assets';
 import type { GeoRegion, Hotspot, Level } from '@/types/hotspots';
+import type { TrafficCategory, TrafficIncident } from '@/types/traffic';
 
 const INITIAL_BOUNDS = '[[-18.5, -48.5], [-1.0, -32.0]]';
 
@@ -16,6 +17,10 @@ interface LeafletMapProps {
   backgroundColor: string;
   onSelect: (hotspot: Hotspot) => void;
   onRegionChange: (region: GeoRegion) => void;
+  incidents?: TrafficIncident[];
+  selectedIncident?: TrafficIncident | null;
+  colorForTraffic?: (category: TrafficCategory) => string;
+  onSelectIncident?: (incident: TrafficIncident) => void;
 }
 
 function zoomForDelta(delta: number): number {
@@ -50,8 +55,10 @@ function buildHtml(backgroundColor: string): string {
     maxZoom: 19,
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
   }).addTo(map);
+  map.attributionControl.addAttribution('Incidentes: &copy; TomTom');
   var markers = [];
   var circle = null;
+  var incidentLayer = L.layerGroup().addTo(map);
   function post(payload) {
     if (window.ReactNativeWebView) window.ReactNativeWebView.postMessage(JSON.stringify(payload));
   }
@@ -79,6 +86,30 @@ function buildHtml(backgroundColor: string): string {
         fillOpacity: 0.15
       }).addTo(map);
     }
+  };
+  window.riskradarUpdateIncidents = function (data) {
+    incidentLayer.clearLayers();
+    (data.incidents || []).forEach(function (incident) {
+      var selected = incident.id === data.selectedId;
+      var shape;
+      if (incident.line && incident.line.length > 1) {
+        shape = L.polyline(incident.line, {
+          color: incident.color,
+          weight: selected ? 6 : 4,
+          opacity: selected ? 1 : 0.85
+        });
+      } else {
+        shape = L.circleMarker([incident.lat, incident.lng], {
+          radius: selected ? 10 : 7,
+          color: '#ffffff',
+          weight: 2,
+          fillColor: incident.color,
+          fillOpacity: 1
+        });
+      }
+      shape.on('click', function () { post({ type: 'selectIncident', id: incident.id }); });
+      shape.addTo(incidentLayer);
+    });
   };
   window.riskradarFocus = function (lat, lng, zoom) {
     window.riskradarHasFocused = true;
@@ -118,6 +149,10 @@ export function LeafletMap({
   backgroundColor,
   onSelect,
   onRegionChange,
+  incidents = [],
+  selectedIncident = null,
+  colorForTraffic,
+  onSelectIncident,
 }: LeafletMapProps) {
   const webRef = useRef<WebView | null>(null);
   const lastFocusRef = useRef<string | null>(null);
@@ -161,6 +196,26 @@ export function LeafletMap({
     webRef.current?.injectJavaScript(`window.riskradarUpdate(${payload}); true;`);
   }, [loaded, payload]);
 
+  const incidentPayload = useMemo(
+    () =>
+      JSON.stringify({
+        incidents: incidents.map((incident) => ({
+          id: incident.id,
+          lat: incident.lat,
+          lng: incident.lng,
+          color: colorForTraffic ? colorForTraffic(incident.category) : '#C62828',
+          line: incident.geometry.length > 1 ? incident.geometry : null,
+        })),
+        selectedId: selectedIncident?.id ?? null,
+      }),
+    [incidents, selectedIncident, colorForTraffic]
+  );
+
+  useEffect(() => {
+    if (!loaded) return;
+    webRef.current?.injectJavaScript(`window.riskradarUpdateIncidents(${incidentPayload}); true;`);
+  }, [loaded, incidentPayload]);
+
   useEffect(() => {
     if (!loaded || !focus) return;
     const key = `${focusKey ?? ''}:${focus.latitude.toFixed(5)}:${focus.longitude.toFixed(5)}`;
@@ -189,6 +244,11 @@ export function LeafletMap({
     if (data.type === 'select' && typeof data.id === 'string') {
       const hotspot = hotspots.find((item) => item.id === data.id);
       if (hotspot) onSelect(hotspot);
+      return;
+    }
+    if (data.type === 'selectIncident' && typeof data.id === 'string') {
+      const incident = incidents.find((item) => item.id === data.id);
+      if (incident) onSelectIncident?.(incident);
       return;
     }
     if (

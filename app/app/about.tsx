@@ -118,6 +118,28 @@ export default function AboutScreen() {
         </View>
       ) : null}
 
+      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[styles.title, { color: colors.text }]}>Trânsito em tempo real</Text>
+        <Text style={[styles.body, { color: colors.textMuted }]}>
+          Além do histórico da PRF, o app consulta os incidentes de trânsito do TomTom para a área
+          visível no mapa e para um raio de 30 km ao redor de você. Entram acidentes, interdições e
+          veículos quebrados; os alertas em primeiro plano cobrem acidentes e interdições.
+        </Text>
+        <Text style={[styles.body, { color: colors.textMuted }]}>
+          Os dados são atualizados enquanto o app está aberto, no intervalo escolhido em
+          Configurações (padrão de 15 minutos). O plano gratuito do TomTom permite 2.500 consultas
+          por mês; o app conta o uso no aparelho e evita consultas desnecessárias com cache.
+        </Text>
+        <Text style={[styles.body, { color: colors.textMuted }]}>
+          Para buscar os incidentes, o app envia ao TomTom apenas a área geográfica consultada —
+          não envia sua identidade nem grava um histórico de posições. A chave da API fica embutida
+          no aplicativo; por isso, restrinja o uso dela no painel do TomTom.
+        </Text>
+        <Text style={[styles.body, { color: colors.textMuted }]}>
+          Incidentes: © TomTom. Dados em tempo real podem estar incompletos ou atrasados.
+        </Text>
+      </View>
+
       <View style={[styles.warning, { backgroundColor: colors.surface, borderColor: colors.danger }]}>
         <Text style={[styles.warningTitle, { color: colors.danger }]}>Aviso importante</Text>
         <Text style={[styles.body, { color: colors.textMuted }]}>

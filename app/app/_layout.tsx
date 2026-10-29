@@ -7,6 +7,7 @@ import { AlertBanner } from '@/components/AlertBanner';
 import { AlertsProvider } from '@/store/alerts';
 import { DataProvider } from '@/store/data';
 import { SettingsProvider } from '@/store/settings';
+import { TrafficProvider } from '@/store/traffic';
 import { useTheme } from '@/theme';
 
 function RootNavigator() {
@@ -51,9 +52,11 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <SettingsProvider>
         <DataProvider>
-          <AlertsProvider>
-            <RootNavigator />
-          </AlertsProvider>
+          <TrafficProvider>
+            <AlertsProvider>
+              <RootNavigator />
+            </AlertsProvider>
+          </TrafficProvider>
         </DataProvider>
       </SettingsProvider>
     </SafeAreaProvider>

@@ -4,6 +4,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import type { Level } from '@/types/hotspots';
 
 export type AlertRadius = 500 | 1000 | 2000;
+export type TrafficRefreshMinutes = 5 | 10 | 15 | 20;
 
 export interface HotspotFilters {
   uf: string | null;
@@ -16,6 +17,12 @@ export interface AppSettings {
   alertRadiusM: AlertRadius;
   alertMinLevel: Level;
   voiceEnabled: boolean;
+  /** Camada de acidentes em tempo real do TomTom. */
+  trafficEnabled: boolean;
+  /** Alerta quando um acidente novo entra no raio de alerta. */
+  trafficAlertEnabled: boolean;
+  /** Intervalo mínimo entre consultas ao TomTom (o plano free tem 2.500/mês). */
+  trafficRefreshMin: TrafficRefreshMinutes;
   filters: HotspotFilters;
 }
 
@@ -24,6 +31,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   alertRadiusM: 1000,
   alertMinLevel: 'alto',
   voiceEnabled: true,
+  trafficEnabled: true,
+  trafficAlertEnabled: true,
+  trafficRefreshMin: 15,
   filters: {
     uf: null,
     br: null,

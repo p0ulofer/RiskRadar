@@ -54,6 +54,24 @@ export function formatDate(iso: string): string {
   });
 }
 
+/**
+ * Tempo relativo curto para "atualizado há X" e para incidentes recentes.
+ * Aceita timestamp em ms ou data ISO.
+ */
+export function formatRelativeTime(input: number | string, now = Date.now()): string {
+  const time = typeof input === 'number' ? input : new Date(input).getTime();
+  if (!Number.isFinite(time)) return '—';
+  const diff = Math.max(0, now - time);
+  if (diff < 60_000) return 'agora';
+  const minutes = Math.floor(diff / 60_000);
+  if (minutes < 60) return `há ${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `há ${hours} h`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `há ${days} d`;
+  return new Date(time).toLocaleDateString('pt-BR');
+}
+
 export function plural(count: number, singular: string, pluralForm: string): string {
   return count === 1 ? singular : pluralForm;
 }

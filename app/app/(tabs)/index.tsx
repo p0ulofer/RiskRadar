@@ -14,12 +14,15 @@ import { DemoBanner } from '@/components/DemoBanner';
 import { FilterModal } from '@/components/FilterModal';
 import { LeafletMap } from '@/components/LeafletMap';
 import { LevelBadge } from '@/components/LevelBadge';
-import { formatKmRange, levelLabel } from '@/lib/format';
+import { categoryLabel, roadLabel } from '@/lib/tomtom';
+import { formatDistance, formatKmRange, formatRelativeTime, levelLabel } from '@/lib/format';
 import { HotspotIndex, filterHotspots } from '@/lib/geo';
 import { useData } from '@/store/data';
 import { useSettings } from '@/store/settings';
+import { useTraffic } from '@/store/traffic';
 import { levelOrder, radius, useTheme } from '@/theme';
 import type { GeoRegion, Hotspot } from '@/types/hotspots';
+import type { TrafficIncident } from '@/types/traffic';
 
 const NORTHEAST_REGION: GeoRegion = {
   latitude: -8.6,
@@ -33,23 +36,39 @@ const MAX_MARKERS = 150;
 export default function MapScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { colors, levelColor } = useTheme();
+  const { colors, levelColor, trafficColor } = useTheme();
   const { document, ready } = useData();
-  const { settings, updateFilters } = useSettings();
-  const { hotspotId, focusAt } = useLocalSearchParams<{
+  const { settings, updateFilters, updateSettings } = useSettings();
+  const {
+    incidents,
+    allIncidents,
+    configured: trafficConfigured,
+    error: trafficError,
+    loading: trafficLoading,
+    regionTooLarge,
+    refresh: refreshTraffic,
+    setRegion: setTrafficRegion,
+    updatedAt: trafficUpdatedAt,
+  } = useTraffic();
+  const { hotspotId, incidentId, focusAt } = useLocalSearchParams<{
     hotspotId?: string;
+    incidentId?: string;
     focusAt?: string;
   }>();
 
   const [userRegion, setUserRegion] = useState<GeoRegion | null>(null);
   const [region, setRegion] = useState<GeoRegion>(NORTHEAST_REGION);
   const [selectedState, setSelectedState] = useState<Hotspot | null>(null);
+  const [selectedIncidentState, setSelectedIncidentState] = useState<TrafficIncident | null>(
+    null
+  );
   const [dismissedFocusToken, setDismissedFocusToken] = useState<string | null | undefined>(
     undefined
   );
   const [filterOpen, setFilterOpen] = useState(false);
 
   const focusToken = hotspotId ? `${hotspotId}:${focusAt ?? ''}` : null;
+  const trafficVisible = settings.trafficEnabled;
 
   const targetHotspot = useMemo(
     () =>
@@ -72,6 +91,33 @@ export default function MapScreen() {
   );
   const selected =
     targetHotspot && dismissedFocusToken !== focusToken ? targetHotspot : selectedState;
+
+  const targetIncident = useMemo(
+    () => (incidentId ? allIncidents.find((item) => item.id === incidentId) ?? null : null),
+    [incidentId, allIncidents]
+  );
+  const incidentToken = targetIncident ? `${targetIncident.id}:${focusAt ?? ''}` : null;
+  const [dismissedIncidentToken, setDismissedIncidentToken] = useState<string | null>(null);
+  const selectedIncident =
+    selectedIncidentState ??
+    (targetIncident && dismissedIncidentToken !== incidentToken ? targetIncident : null);
+  const targetIncidentRegion = useMemo<GeoRegion | null>(
+    () =>
+      targetIncident
+        ? {
+            latitude: targetIncident.lat,
+            longitude: targetIncident.lng,
+            latitudeDelta: 0.02,
+            longitudeDelta: 0.02,
+          }
+        : null,
+    [targetIncident]
+  );
+  const mapFocusKey = targetIncident
+    ? `incident:${targetIncident.id}:${focusAt ?? ''}`
+    : targetHotspot
+      ? focusToken
+      : null;
 
   useEffect(() => {
     let cancelled = false;
@@ -137,12 +183,26 @@ export default function MapScreen() {
 
   const selectHotspot = (hotspot: Hotspot) => {
     setSelectedState(hotspot);
+    setSelectedIncidentState(null);
+    setDismissedIncidentToken(incidentToken);
+    setDismissedFocusToken(focusToken);
+  };
+
+  const selectIncident = (incident: TrafficIncident) => {
+    setSelectedIncidentState(incident);
+    setDismissedIncidentToken(null);
+    setSelectedState(null);
     setDismissedFocusToken(focusToken);
   };
 
   const closeSelected = () => {
     setSelectedState(null);
     setDismissedFocusToken(focusToken);
+  };
+
+  const closeIncident = () => {
+    setSelectedIncidentState(null);
+    setDismissedIncidentToken(incidentToken);
   };
 
   if (!ready) {
@@ -161,12 +221,19 @@ export default function MapScreen() {
         <LeafletMap
           hotspots={mapHotspots}
           selected={selected}
-          focus={targetRegion ?? userRegion}
-          focusKey={targetHotspot ? focusToken : null}
+          focus={targetIncidentRegion ?? targetRegion ?? userRegion}
+          focusKey={mapFocusKey}
           colorForLevel={levelColor}
           backgroundColor={colors.background}
           onSelect={selectHotspot}
-          onRegionChange={setRegion}
+          onRegionChange={(next) => {
+            setRegion(next);
+            setTrafficRegion(next);
+          }}
+          incidents={trafficVisible ? allIncidents : []}
+          selectedIncident={selectedIncident}
+          colorForTraffic={trafficColor}
+          onSelectIncident={selectIncident}
         />
 
         <View
@@ -217,6 +284,75 @@ export default function MapScreen() {
           ))}
         </View>
 
+        <View
+          style={[
+            styles.trafficChip,
+            {
+              top: insets.top + 78,
+              backgroundColor: colors.mapOverlay,
+              borderColor: trafficError ? colors.warning : colors.border,
+            },
+          ]}
+        >
+          <Pressable
+            onPress={() => {
+              if (!trafficConfigured) {
+                router.push('/(tabs)/settings');
+                return;
+              }
+              updateSettings({ trafficEnabled: !settings.trafficEnabled });
+            }}
+            style={styles.trafficChipMain}
+            accessibilityRole="button"
+            accessibilityLabel={
+              trafficConfigured
+                ? 'Ligar ou desligar a camada de acidentes em tempo real'
+                : 'Configurar a chave do TomTom'
+            }
+          >
+            <View
+              style={[
+                styles.trafficDot,
+                {
+                  backgroundColor:
+                    trafficVisible && trafficConfigured && !trafficError
+                      ? colors.danger
+                      : colors.border,
+                },
+              ]}
+            />
+            <Text style={[styles.trafficText, { color: colors.text }]} numberOfLines={1}>
+              {!trafficConfigured
+                ? 'Acidentes: configurar'
+                : !trafficVisible
+                  ? 'Acidentes desligados'
+                  : trafficLoading
+                    ? 'Buscando acidentes…'
+                    : regionTooLarge
+                      ? 'Aproxime para ver acidentes'
+                      : trafficError
+                        ? incidents.length > 0
+                          ? `${incidents.length} acidentes · desatualizados`
+                          : 'Acidentes indisponíveis'
+                        : `${incidents.length} acidentes${
+                            trafficUpdatedAt ? ` · ${formatRelativeTime(trafficUpdatedAt)}` : ''
+                          }`}
+            </Text>
+          </Pressable>
+          {trafficConfigured && trafficVisible ? (
+            <Pressable
+              onPress={() => {
+                void refreshTraffic({ force: true });
+              }}
+              style={styles.trafficRefresh}
+              accessibilityRole="button"
+              accessibilityLabel="Atualizar acidentes agora"
+            >
+              <Text style={[styles.trafficRefreshText, { color: colors.primary }]}>↻</Text>
+            </Pressable>
+          ) : null}
+        </View>
+
         {visible.length === 0 ? (
           <View
             style={[
@@ -230,7 +366,80 @@ export default function MapScreen() {
           </View>
         ) : null}
 
-        {selected ? (
+        {selectedIncident ? (
+          <View
+            style={[
+              styles.card,
+              {
+                backgroundColor: colors.surface,
+                borderColor: trafficColor(selectedIncident.category),
+                marginBottom: 12,
+              },
+            ]}
+          >
+            <View style={styles.cardHeader}>
+              <Text style={[styles.cardTitle, { color: colors.text }]} numberOfLines={2}>
+                {categoryLabel(selectedIncident.category)}
+                {selectedIncident.roadNumbers[0]
+                  ? ` · ${roadLabel(selectedIncident.roadNumbers[0])}`
+                  : ''}
+              </Text>
+              <View
+                style={[
+                  styles.categoryDot,
+                  { backgroundColor: trafficColor(selectedIncident.category) },
+                ]}
+              />
+            </View>
+            {selectedIncident.from || selectedIncident.to ? (
+              <Text style={[styles.cardSubtitle, { color: colors.textMuted }]} numberOfLines={2}>
+                {[selectedIncident.from, selectedIncident.to].filter(Boolean).join(' → ')}
+              </Text>
+            ) : selectedIncident.description ? (
+              <Text style={[styles.cardSubtitle, { color: colors.textMuted }]} numberOfLines={2}>
+                {selectedIncident.description}
+              </Text>
+            ) : null}
+            <Text style={[styles.cardStats, { color: colors.textMuted }]}>
+              {[
+                selectedIncident.lengthM !== undefined
+                  ? `${formatDistance(selectedIncident.lengthM)} de extensão`
+                  : null,
+                selectedIncident.delayS !== undefined && selectedIncident.delayS > 0
+                  ? `atraso de ${Math.max(1, Math.round(selectedIncident.delayS / 60))} min`
+                  : null,
+                selectedIncident.lastReportTime
+                  ? `reportado ${formatRelativeTime(selectedIncident.lastReportTime)}`
+                  : null,
+              ]
+                .filter(Boolean)
+                .join(' · ') || 'Sem detalhes adicionais.'}
+            </Text>
+            <Text style={[styles.cardAttribution, { color: colors.textMuted }]}>
+              Incidentes: © TomTom
+            </Text>
+            <View style={styles.cardActions}>
+              <Pressable
+                onPress={closeIncident}
+                style={[styles.secondaryButton, { borderColor: colors.border }]}
+                accessibilityRole="button"
+              >
+                <Text style={[styles.secondaryButtonText, { color: colors.text }]}>Fechar</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  void refreshTraffic({ force: true });
+                }}
+                style={[styles.primaryButton, { backgroundColor: colors.primary }]}
+                accessibilityRole="button"
+              >
+                <Text style={[styles.primaryButtonText, { color: colors.primaryText }]}>
+                  Atualizar
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : selected ? (
           <View
             style={[
               styles.card,
@@ -356,6 +565,51 @@ const styles = StyleSheet.create({
   legendText: {
     fontSize: 11,
     fontWeight: '600',
+  },
+  trafficChip: {
+    position: 'absolute',
+    right: 12,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    flexDirection: 'row',
+    alignItems: 'center',
+    maxWidth: '62%',
+  },
+  trafficChipMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingVertical: 9,
+    paddingLeft: 10,
+    paddingRight: 8,
+    flexShrink: 1,
+  },
+  trafficDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  trafficText: {
+    fontSize: 11,
+    fontWeight: '700',
+    flexShrink: 1,
+  },
+  trafficRefresh: {
+    paddingHorizontal: 10,
+    paddingVertical: 9,
+  },
+  trafficRefreshText: {
+    fontSize: 14,
+    fontWeight: '800',
+  },
+  categoryDot: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
+    marginTop: 3,
+  },
+  cardAttribution: {
+    fontSize: 10,
   },
   empty: {
     position: 'absolute',

@@ -1,6 +1,6 @@
 import * as Location from 'expo-location';
 import { useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   FlatList,
@@ -12,16 +12,80 @@ import {
 } from 'react-native';
 
 import { HotspotListItem } from '@/components/HotspotListItem';
+import { formatDistance, formatRelativeTime } from '@/lib/format';
+import { haversineMeters } from '@/lib/geo';
+import { categoryLabel, roadLabel } from '@/lib/tomtom';
 import { useData } from '@/store/data';
+import { useTraffic } from '@/store/traffic';
 import { radius, useTheme } from '@/theme';
 import type { GeoPoint, NearbyHotspot } from '@/types/hotspots';
+import type { TrafficIncident } from '@/types/traffic';
 
 type PermissionState = 'checking' | 'undetermined' | 'granted' | 'denied';
+
+function IncidentRow({
+  incident,
+  distanceM,
+  onPress,
+}: {
+  incident: TrafficIncident;
+  distanceM: number;
+  onPress: () => void;
+}) {
+  const { colors, trafficColor } = useTheme();
+  const where =
+    [incident.from, incident.to].filter(Boolean).join(' → ') ||
+    incident.description ||
+    'Local não informado';
+  return (
+    <Pressable
+      onPress={onPress}
+      style={[
+        styles.incidentRow,
+        { backgroundColor: colors.surfaceAlt, borderColor: colors.border },
+      ]}
+      accessibilityRole="button"
+      accessibilityLabel={`Ver ${categoryLabel(incident.category)} no mapa`}
+    >
+      <View
+        style={[styles.incidentDot, { backgroundColor: trafficColor(incident.category) }]}
+      />
+      <View style={styles.incidentText}>
+        <Text style={[styles.incidentTitle, { color: colors.text }]} numberOfLines={1}>
+          {categoryLabel(incident.category)}
+          {incident.roadNumbers[0] ? ` · ${roadLabel(incident.roadNumbers[0])}` : ''}
+        </Text>
+        <Text style={[styles.incidentSubtitle, { color: colors.textMuted }]} numberOfLines={1}>
+          {where}
+        </Text>
+      </View>
+      <View style={styles.incidentRight}>
+        <Text style={[styles.incidentDistance, { color: colors.primary }]}>
+          {formatDistance(distanceM)}
+        </Text>
+        {incident.lastReportTime ? (
+          <Text style={[styles.incidentTime, { color: colors.textMuted }]}>
+            {formatRelativeTime(incident.lastReportTime)}
+          </Text>
+        ) : null}
+      </View>
+    </Pressable>
+  );
+}
 
 export default function NearbyScreen() {
   const { colors } = useTheme();
   const { index, ready } = useData();
   const router = useRouter();
+  const {
+    nearbyIncidents,
+    configured: trafficConfigured,
+    enabled: trafficEnabled,
+    error: trafficError,
+    loading: trafficLoading,
+    refreshNearby,
+    updatedAt: trafficUpdatedAt,
+  } = useTraffic();
 
   const [permission, setPermission] = useState<PermissionState>('checking');
   const [gpsEnabled, setGpsEnabled] = useState(true);
@@ -29,6 +93,20 @@ export default function NearbyScreen() {
   const [nearby, setNearby] = useState<NearbyHotspot[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const trafficItems = useMemo(() => {
+    if (!position) return [];
+    return nearbyIncidents
+      .map((incident) => ({
+        incident,
+        distanceM: haversineMeters(position, {
+          latitude: incident.lat,
+          longitude: incident.lng,
+        }),
+      }))
+      .sort((a, b) => a.distanceM - b.distanceM)
+      .slice(0, 10);
+  }, [nearbyIncidents, position]);
 
   const loadPosition = useCallback(async () => {
     setLoading(true);
@@ -49,12 +127,13 @@ export default function NearbyScreen() {
       };
       setPosition(point);
       setNearby(index.nearestHotspots(point, 20));
+      void refreshNearby(point);
     } catch {
       setError('Não foi possível obter sua posição agora.');
     } finally {
       setLoading(false);
     }
-  }, [index]);
+  }, [index, refreshNearby]);
 
   useEffect(() => {
     let cancelled = false;
@@ -110,7 +189,8 @@ export default function NearbyScreen() {
           <Text style={[styles.title, { color: colors.text }]}>Trechos de risco perto de você</Text>
           <Text style={[styles.body, { color: colors.textMuted }]}>
             O RiskRadar precisa da sua localização para calcular a distância até os trechos com mais
-            acidentes. A posição é usada apenas no aparelho e não é enviada para servidores.
+            acidentes. A posição é usada no aparelho; para os acidentes em tempo real, apenas a área
+            consultada é enviada ao TomTom.
           </Text>
           <Text style={[styles.body, { color: colors.textMuted }]}>
             Os alertas em primeiro plano também usam a localização enquanto o app está aberto.
@@ -156,6 +236,71 @@ export default function NearbyScreen() {
         contentContainerStyle={styles.list}
         ListHeaderComponent={
           <View style={styles.header}>
+            <View style={styles.trafficSection}>
+              <View style={styles.trafficHeader}>
+                <Text style={[styles.sectionTitle, { color: colors.text }]}>Acidentes agora</Text>
+                {trafficUpdatedAt ? (
+                  <Text style={[styles.trafficUpdated, { color: colors.textMuted }]}>
+                    atualizado {formatRelativeTime(trafficUpdatedAt)}
+                  </Text>
+                ) : null}
+              </View>
+
+              {!trafficConfigured ? (
+                <>
+                  <Text style={[styles.body, { color: colors.textMuted }]}>
+                    Os acidentes em tempo real usam o TomTom. Falta configurar a chave da API.
+                  </Text>
+                  <Pressable
+                    onPress={() => router.navigate('/(tabs)/settings')}
+                    style={[styles.primaryButtonSmall, { backgroundColor: colors.primary }]}
+                    accessibilityRole="button"
+                  >
+                    <Text style={[styles.primaryButtonText, { color: colors.primaryText }]}>
+                      Configurar agora
+                    </Text>
+                  </Pressable>
+                </>
+              ) : !trafficEnabled ? (
+                <Text style={[styles.body, { color: colors.textMuted }]}>
+                  Camada de acidentes desligada. Ative em Configurações para ver os incidentes.
+                </Text>
+              ) : trafficError ? (
+                <Text style={[styles.warning, { color: colors.warning }]}>{trafficError}</Text>
+              ) : trafficLoading && trafficItems.length === 0 ? (
+                <ActivityIndicator style={styles.trafficLoader} color={colors.primary} />
+              ) : trafficItems.length === 0 ? (
+                <Text style={[styles.body, { color: colors.textMuted }]}>
+                  {position
+                    ? 'Nenhum acidente ou interdição reportado num raio de 30 km agora.'
+                    : 'Aguardando sua posição…'}
+                </Text>
+              ) : (
+                <View style={styles.incidentList}>
+                  {trafficItems.map((item) => (
+                    <IncidentRow
+                      key={item.incident.id}
+                      incident={item.incident}
+                      distanceM={item.distanceM}
+                      onPress={() =>
+                        router.navigate({
+                          pathname: '/',
+                          params: {
+                            incidentId: item.incident.id,
+                            focusAt: String(Date.now()),
+                          },
+                        })
+                      }
+                    />
+                  ))}
+                </View>
+              )}
+
+              <Text style={[styles.attribution, { color: colors.textMuted }]}>
+                Incidentes: © TomTom · raio de 30 km
+              </Text>
+            </View>
+
             <Text style={[styles.title, { color: colors.text }]}>Mais próximos de você</Text>
             <Text style={[styles.body, { color: colors.textMuted }]}>
               {position
@@ -246,6 +391,67 @@ const styles = StyleSheet.create({
   header: {
     gap: 8,
     marginBottom: 8,
+  },
+  trafficSection: {
+    gap: 8,
+    marginBottom: 12,
+  },
+  trafficHeader: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+    gap: 8,
+  },
+  sectionTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+  },
+  trafficUpdated: {
+    fontSize: 11,
+  },
+  trafficLoader: {
+    marginVertical: 12,
+  },
+  incidentList: {
+    gap: 8,
+  },
+  incidentRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: radius.md,
+    padding: 10,
+  },
+  incidentDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+  },
+  incidentText: {
+    flex: 1,
+    gap: 2,
+  },
+  incidentTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  incidentSubtitle: {
+    fontSize: 12,
+  },
+  incidentRight: {
+    alignItems: 'flex-end',
+    gap: 2,
+  },
+  incidentDistance: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  incidentTime: {
+    fontSize: 11,
+  },
+  attribution: {
+    fontSize: 10,
   },
   headerActions: {
     flexDirection: 'row',

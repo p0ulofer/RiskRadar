@@ -5,22 +5,41 @@ import { radius, useTheme } from '@/theme';
 import { useAlerts } from '@/store/alerts';
 
 export function AlertBanner() {
-  const { activeAlert, dismissAlert } = useAlerts();
-  const { colors, levelColor } = useTheme();
+  const {
+    activeAlert,
+    activeTrafficAlert,
+    dismissAlert,
+    dismissTrafficAlert,
+  } = useAlerts();
+  const { colors, levelColor, trafficColor } = useTheme();
   const insets = useSafeAreaInsets();
 
-  if (!activeAlert) return null;
-  const color = levelColor(activeAlert.hotspot.level);
+  const isTraffic = activeTrafficAlert !== null;
+  const message = isTraffic ? activeTrafficAlert.message : activeAlert?.message;
+  if (!message) return null;
+
+  const color = activeTrafficAlert
+    ? trafficColor(activeTrafficAlert.incident.category)
+    : activeAlert
+      ? levelColor(activeAlert.hotspot.level)
+      : colors.border;
+  const title = isTraffic ? 'Alerta de trânsito' : 'Alerta de trecho de risco';
+  const onDismiss = isTraffic ? dismissTrafficAlert : dismissAlert;
 
   return (
     <View style={[styles.wrapper, { top: insets.top + 8 }]} pointerEvents="box-none">
       <View style={[styles.banner, { backgroundColor: colors.surface, borderColor: color }]}>
         <View style={[styles.stripe, { backgroundColor: color }]} />
         <View style={styles.content}>
-          <Text style={[styles.title, { color: colors.text }]}>Alerta de trecho de risco</Text>
-          <Text style={[styles.message, { color: colors.textMuted }]}>{activeAlert.message}</Text>
+          <Text style={[styles.title, { color: colors.text }]}>{title}</Text>
+          <Text style={[styles.message, { color: colors.textMuted }]}>{message}</Text>
+          {isTraffic ? (
+            <Text style={[styles.attribution, { color: colors.textMuted }]}>
+              Incidentes: © TomTom
+            </Text>
+          ) : null}
           <Pressable
-            onPress={dismissAlert}
+            onPress={onDismiss}
             style={[styles.close, { borderColor: colors.border }]}
             accessibilityRole="button"
             accessibilityLabel="Fechar alerta"
@@ -66,6 +85,9 @@ const styles = StyleSheet.create({
   message: {
     fontSize: 13,
     lineHeight: 18,
+  },
+  attribution: {
+    fontSize: 10,
   },
   close: {
     alignSelf: 'flex-end',

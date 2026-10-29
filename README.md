@@ -1,3 +1,4 @@
+
 # RiskRadar
 
 Aplicativo móvel que mostra **trechos de risco de acidentes** nas rodovias
@@ -8,8 +9,8 @@ federais do Nordeste, a partir dos dados abertos da Polícia Rodoviária Federal
    agrupa acidentes próximos em hotspots, calcula um score de severidade e
    exporta `hotspots.json` + `meta.json`.
 2. **App Expo/React Native** — mapa, filtros, detalhes do trecho, “Perto de
-   mim”, alertas em primeiro plano e configurações. Funciona offline com um
-   seed embarcado.
+   mim”, acidentes em tempo real do TomTom, alertas em primeiro plano e
+   configurações. Funciona offline com um seed embarcado.
 
 > Informação baseada em dados históricos; não substitui a atenção ao dirigir
 > nem a sinalização da via. **Não use o celular enquanto dirige.**
@@ -84,7 +85,7 @@ RiskRadar/
     │   ├── lib/alerts.ts       # regras de alerta (puro/testável)
     │   ├── lib/notifications.ts # ponte tolerante a falhas do expo-notifications
     │   ├── lib/leaflet-assets.ts # Leaflet embutido (gerado)
-    │   ├── store/              # settings, dados e alertas
+    │   ├── store/              # settings, dados, alertas e tráfego
     │   ├── theme/
     │   └── types/
     ├── scripts/                # geração dos assets do Leaflet
@@ -214,8 +215,49 @@ EXPO_PUBLIC_DATA_URL=http://SEU-IP-LOCAL:8000 npx expo start
 ```
 
 Em produção, publique os dois arquivos em um host estático com HTTPS (GitHub
-Pages, S3, Netlify etc.). O app não envia localização para servidores; a
-localização só é usada no aparelho.
+Pages, S3, Netlify etc.). A localização não é enviada como dado pessoal; para
+os acidentes em tempo real, apenas a área geográfica consultada vai ao TomTom
+(veja abaixo).
+
+### Acidentes em tempo real (TomTom)
+
+A camada de trânsito é opcional e usa a API de incidentes do **TomTom Orbis
+Maps v2**. Crie uma conta no TomTom, gere uma chave e coloque no arquivo
+`app/.env`:
+
+```bash
+# app/.env
+EXPO_PUBLIC_TOMTOM_API_KEY=sua-chave-aqui
+```
+
+Reinicie o bundler limpando o cache: `npx expo start -c`. Sem a chave, o app
+continua funcionando normalmente com os dados históricos.
+
+O que a integração faz:
+
+- consulta acidentes, interdições e veículos quebrados na **área visível do
+  mapa** e num **raio de 30 km** ao redor do usuário;
+- atualiza a cada **5, 10, 15 (padrão) ou 20 minutos**, somente com o app
+  aberto, e reaproveita o cache enquanto ele estiver válido;
+- mostra a lista **Acidentes agora** em “Perto de mim”, com distância e horário
+  do último reporte;
+- dispara banner, notificação local e voz quando um acidente ou interdição
+  entra no raio de alerta, com cooldown de 30 min por incidente e de 30 s entre
+  alertas.
+
+O plano gratuito do TomTom oferece **2.500 consultas por mês** para Incident
+Details, e cada chamada aceita no máximo **10.000 km²**. O app conta as
+consultas no aparelho, bloqueia novas chamadas ao atingir o limite e orienta a
+aproximar o mapa quando a área visível é grande demais. Como o contador é por
+instalação, reinstalar o app zera a contagem local — o controle oficial é o do
+painel do TomTom.
+
+> **Segurança da chave:** variáveis `EXPO_PUBLIC_*` ficam embutidas no bundle e
+> podem ser extraídas do aplicativo. Restrinja a chave no painel do TomTom e,
+> antes de publicar, considere mover as chamadas para um proxy próprio.
+
+Atribuição exigida: **Incidentes: © TomTom**, exibida no mapa, na lista e nos
+alertas.
 
 ### Funcionalidades
 
@@ -230,11 +272,18 @@ localização só é usada no aparelho.
   mais próximos com distância, nível, BR e município. Ao abrir um item, o botão
   **Mostrar no mapa do RiskRadar** fecha os detalhes, vai para a aba Mapa,
   centraliza o trecho e o destaca mesmo que os filtros atuais escondam o nível.
+  A seção **Acidentes agora** lista os incidentes do TomTom num raio de 30 km,
+  com distância e horário do reporte; tocar num item abre o incidente no mapa.
+- **Acidentes em tempo real:** camada do TomTom no mapa (ponto ou linha da via),
+  chip de status com atualização manual, cache local e cota mensal. Requer
+  `EXPO_PUBLIC_TOMTOM_API_KEY`.
 - **Alertas em primeiro plano:** switch em Configurações, raio de
   500/1000/2000 m, nível mínimo, banner, notificação local e voz pt-BR
-  opcional. Cooldown de 10 min por hotspot e 1 alerta a cada 30 s.
+  opcional. Cooldown de 10 min por hotspot e 1 alerta a cada 30 s. Acidentes e
+  interdições do TomTom usam o mesmo raio, com cooldown de 30 min por incidente.
 - **Configurações:** versão dos dados, origem (cache/seed), atualização
-  manual, limpeza de cache e restauração dos padrões.
+  manual, limpeza de cache, TomTom (toggles, intervalo, chave, última
+  atualização e cota mensal) e restauração dos padrões.
 - **Sobre:** fonte, metodologia, limitações e aviso de segurança.
 
 Alertas **não funcionam com o app fechado ou em segundo plano** — é uma
@@ -255,10 +304,11 @@ npx jest --runInBand
 
 Cobertura atual:
 
-- **33 testes** de pipeline (carga, limpeza, clustering, score, exportação,
+- **34 testes** de pipeline (carga, limpeza, clustering, score, exportação,
   sintético e OSM com cliente falso).
-- **29 testes** de app (haversine/índice espacial, regras de alerta,
-  repositório com cache/seed/falha de rede e fallback de notificações).
+- **60 testes** de app (haversine/índice espacial, regras de alerta de hotspots
+  e de trânsito, cliente TomTom, cache/cota, repositório com cache/seed/falha
+  de rede e fallback de notificações).
 - TypeScript strict sem erros e ESLint sem avisos.
 
 ## Documentação
@@ -271,7 +321,16 @@ Cobertura atual:
 
 ## Limitações conhecidas
 
-- Os dados são **históricos**: o app não prevê acidentes futuros.
+- Os dados são **históricos**: o app não prevê acidentes futuros. Os
+  incidentes do TomTom são o único dado em tempo real e dependem da cobertura
+  dele no trecho.
+- O plano gratuito do TomTom tem **2.500 consultas/mês**; a cota mostrada é a
+  contagem local do aparelho, não a do painel. Cada chamada cobre no máximo
+  10.000 km², então mapas muito afastados mostram “Aproxime para ver acidentes”.
+- A chave do TomTom em `EXPO_PUBLIC_*` fica embutida no bundle e pode ser
+  extraída; para produção, use um proxy.
+- Incidentes em tempo real podem estar incompletos, atrasados ou mudar depois
+  do reporte; use como apoio, nunca como garantia de via livre.
 - Coordenadas da PRF podem ter imprecisão de dezenas/centenas de metros: elas
   são georreferenciadas ao **trecho** da rodovia, não ao GPS do acidente, e
   vários acidentes compartilham a mesma coordenada.

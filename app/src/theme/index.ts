@@ -2,6 +2,17 @@ import { useMemo } from 'react';
 import { useColorScheme } from 'react-native';
 
 import type { Level } from '@/types/hotspots';
+import type { TrafficCategory } from '@/types/traffic';
+
+export const trafficColors: Record<TrafficCategory, { light: string; dark: string }> = {
+  accident: { light: '#C62828', dark: '#EF5350' },
+  roadClosed: { light: '#E65100', dark: '#FFA726' },
+  jam: { light: '#F9A825', dark: '#FFD54F' },
+  roadWorks: { light: '#6D4C41', dark: '#BCAAA4' },
+  brokenDownVehicle: { light: '#546E7A', dark: '#90A4AE' },
+  dangerousConditions: { light: '#6A1B9A', dark: '#BA68C8' },
+  other: { light: '#455A64', dark: '#90A4AE' },
+};
 
 export const levelColors: Record<Level, { light: string; dark: string }> = {
   baixo: { light: '#2E7D32', dark: '#66BB6A' },
@@ -61,6 +72,8 @@ export function useTheme() {
       isDark,
       colors,
       levelColor: (level: Level) => levelColors[level][isDark ? 'dark' : 'light'],
+      trafficColor: (category: TrafficCategory) =>
+        trafficColors[category][isDark ? 'dark' : 'light'],
       spacing: (multiplier = 1) => 8 * multiplier,
     };
   }, [isDark]);

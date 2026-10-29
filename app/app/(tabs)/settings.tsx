@@ -9,10 +9,15 @@ import {
   View,
 } from 'react-native';
 
-import { formatDate, levelLabel } from '@/lib/format';
+import { formatDate, formatRelativeTime, levelLabel } from '@/lib/format';
 import { useAlerts } from '@/store/alerts';
 import { useData } from '@/store/data';
-import { useSettings, type AlertRadius } from '@/store/settings';
+import {
+  useSettings,
+  type AlertRadius,
+  type TrafficRefreshMinutes,
+} from '@/store/settings';
+import { useTraffic } from '@/store/traffic';
 import { levelOrder, radius, useTheme } from '@/theme';
 import type { Level } from '@/types/hotspots';
 
@@ -65,6 +70,13 @@ export default function SettingsScreen() {
   const { document, source, refreshing, refresh, clearAndReload, updateConfigured, notice } =
     useData();
   const { alertIssue, notificationStatus, requestNotifications } = useAlerts();
+  const {
+    configured: trafficConfigured,
+    error: trafficError,
+    quota,
+    loading: trafficLoading,
+    updatedAt: trafficUpdatedAt,
+  } = useTraffic();
 
   const setLevel = (level: Level) => updateSettings({ alertMinLevel: level });
 
@@ -103,7 +115,8 @@ export default function SettingsScreen() {
         <Text style={[styles.sectionTitle, { color: colors.text }]}>Alertas em primeiro plano</Text>
         <Text style={[styles.sectionDescription, { color: colors.textMuted }]}>
           O app acompanha sua posição enquanto está aberto e avisa quando você se aproxima de um
-          trecho de risco. Não funciona com o app fechado ou em segundo plano.
+          trecho de risco. Se a camada do TomTom estiver ativa, também avisa sobre acidentes e
+          interdições próximos. Não funciona com o app fechado ou em segundo plano.
         </Text>
 
         <View style={styles.row}>
@@ -166,6 +179,98 @@ export default function SettingsScreen() {
             accessibilityLabel="Alerta por voz"
           />
         </View>
+      </View>
+
+      <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>Acidentes em tempo real</Text>
+        <Text style={[styles.sectionDescription, { color: colors.textMuted }]}>
+          Incidentes do TomTom no mapa e na lista Perto de mim, atualizados enquanto o app está
+          aberto. Funciona offline com os últimos dados baixados.
+        </Text>
+
+        <View style={styles.row}>
+          <View style={styles.rowText}>
+            <Text style={[styles.rowLabel, { color: colors.text }]}>Mostrar acidentes</Text>
+            <Text style={[styles.rowHint, { color: colors.textMuted }]}>
+              Camada no mapa e seção “Acidentes agora”
+            </Text>
+          </View>
+          <Switch
+            value={settings.trafficEnabled}
+            onValueChange={(value) => updateSettings({ trafficEnabled: value })}
+            trackColor={{ false: colors.border, true: colors.primary }}
+            accessibilityLabel="Mostrar acidentes em tempo real"
+          />
+        </View>
+
+        <View style={[styles.row, !settings.trafficEnabled ? styles.rowMuted : null]}>
+          <View style={styles.rowText}>
+            <Text style={[styles.rowLabel, { color: colors.text }]}>Alertar acidentes próximos</Text>
+            <Text style={[styles.rowHint, { color: colors.textMuted }]}>
+              Avisa ao chegar perto de um acidente ou interdição, usando o raio de alerta acima
+            </Text>
+          </View>
+          <Switch
+            value={settings.trafficAlertEnabled}
+            onValueChange={(value) => updateSettings({ trafficAlertEnabled: value })}
+            disabled={!settings.trafficEnabled}
+            trackColor={{ false: colors.border, true: colors.primary }}
+            accessibilityLabel="Alertar sobre acidentes próximos"
+          />
+        </View>
+
+        <Text style={[styles.subsection, { color: colors.textMuted }]}>Atualizar a cada</Text>
+        <OptionRow<TrafficRefreshMinutes>
+          options={[5, 10, 15, 20]}
+          value={settings.trafficRefreshMin}
+          onChange={(value) => updateSettings({ trafficRefreshMin: value })}
+          format={(value) => `${value} min`}
+        />
+        <Text style={[styles.hint, { color: colors.textMuted }]}>
+          O plano gratuito do TomTom permite 2.500 consultas por mês. O app conta as consultas e
+          para quando o limite é atingido; os últimos dados continuam disponíveis. Intervalos
+          menores gastam a cota mais rápido.
+        </Text>
+
+        <View style={styles.infoRow}>
+          <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Chave do TomTom</Text>
+          <Text style={[styles.infoValue, { color: colors.text }]}>
+            {trafficConfigured ? 'configurada' : 'não configurada'}
+          </Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Text style={[styles.infoLabel, { color: colors.textMuted }]}>Última atualização</Text>
+          <Text style={[styles.infoValue, { color: colors.text }]}>
+            {trafficLoading
+              ? 'atualizando…'
+              : trafficUpdatedAt
+                ? formatRelativeTime(trafficUpdatedAt)
+                : '—'}
+          </Text>
+        </View>
+        <View style={styles.infoRow}>
+          <Text style={[styles.infoLabel, { color: colors.textMuted }]}>
+            Consultas em {quota.month ? quota.month.split('-').reverse().join('/') : '—'}
+          </Text>
+          <Text style={[styles.infoValue, { color: colors.text }]}>
+            {quota.used} de {quota.limit} · {quota.remaining} restantes
+          </Text>
+        </View>
+
+        {trafficError ? (
+          <Text style={[styles.issue, { color: colors.warning }]}>{trafficError}</Text>
+        ) : null}
+        {!trafficConfigured ? (
+          <Text style={[styles.hint, { color: colors.textMuted }]}>
+            Crie o arquivo app/.env com EXPO_PUBLIC_TOMTOM_API_KEY=sua-chave e reinicie com
+            “npx expo start -c”. Sem chave, o mapa continua funcionando com os dados históricos.
+          </Text>
+        ) : (
+          <Text style={[styles.hint, { color: colors.textMuted }]}>
+            A chave fica embutida no aplicativo e pode ser extraída do pacote. Restrinja o uso no
+            painel do TomTom e considere um proxy antes de publicar.
+          </Text>
+        )}
       </View>
 
       <View style={[styles.section, { backgroundColor: colors.surface, borderColor: colors.border }]}>
@@ -285,6 +390,9 @@ const styles = StyleSheet.create({
   rowText: {
     flex: 1,
     gap: 2,
+  },
+  rowMuted: {
+    opacity: 0.55,
   },
   rowLabel: {
     fontSize: 15,
