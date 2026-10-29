@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 import { WebView, type WebViewMessageEvent } from 'react-native-webview';
 
@@ -219,12 +219,35 @@ export function LeafletMap({
   const [reloadKey, setReloadKey] = useState(0);
 
   const html = useMemo(() => buildHtml(backgroundColor), [backgroundColor]);
+  // Objeto estável: evita que o WebView recarregue a cada re-render do app
+  // (na primeira abertura há muitos estados mudando ao mesmo tempo).
+  const source = useMemo(() => ({ html }), [html]);
+  const autoRetryRef = useRef(false);
+
+  // Remonta o WebView do zero (usado na retentativa automática e na manual).
+  const remount = useCallback(() => {
+    setFailed(false);
+    setTimedOut(false);
+    setLoaded(false);
+    lastFocusRef.current = null;
+    setReloadKey((value) => value + 1);
+  }, []);
 
   useEffect(() => {
     if (loaded || failed) return;
-    const timer = setTimeout(() => setTimedOut(true), 12_000);
+    const delay = autoRetryRef.current ? 20_000 : 8_000;
+    const timer = setTimeout(() => {
+      if (!autoRetryRef.current) {
+        // No cold start o primeiro WebView pode ficar em branco. Remonta uma
+        // vez automaticamente em vez de mostrar erro ao usuário.
+        autoRetryRef.current = true;
+        remount();
+        return;
+      }
+      setTimedOut(true);
+    }, delay);
     return () => clearTimeout(timer);
-  }, [loaded, failed, reloadKey]);
+  }, [loaded, failed, reloadKey, remount]);
 
   const payload = useMemo(
     () =>
@@ -339,12 +362,21 @@ export function LeafletMap({
     }
   };
 
+  // Falha de carregamento: no cold start, tenta remontar uma vez antes de
+  // mostrar a tela de erro para o usuário.
+  const handleError = () => {
+    if (!autoRetryRef.current) {
+      autoRetryRef.current = true;
+      remount();
+      return;
+    }
+    setFailed(true);
+  };
+
   const retry = () => {
-    setFailed(false);
-    setTimedOut(false);
-    setLoaded(false);
-    lastFocusRef.current = null;
-    setReloadKey((value) => value + 1);
+    // Ação manual reinicia o ciclo, permitindo uma nova tentativa automática.
+    autoRetryRef.current = false;
+    remount();
   };
 
   return (
@@ -352,7 +384,7 @@ export function LeafletMap({
       <WebView
         key={reloadKey}
         ref={webRef}
-        source={{ html }}
+        source={source}
         style={styles.webview}
         originWhitelist={['*']}
         javaScriptEnabled
@@ -360,7 +392,7 @@ export function LeafletMap({
         applicationNameForUserAgent="RiskRadar/1.0"
         setSupportMultipleWindows={false}
         onMessage={handleMessage}
-        onError={() => setFailed(true)}
+        onError={handleError}
         accessibilityLabel="Mapa de hotspots nas rodovias federais do Nordeste"
       />
       {!loaded && !failed && !timedOut ? (
